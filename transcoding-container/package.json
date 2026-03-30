@@ -1,12 +1,19 @@
 {
   "name": "transcoding-container",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
+  "scripts": {
+    "build": "tsc",
+    "start": "bun run dist/index.js",
+    "dev": "bun run --watch src/index.ts"
   },
-  "peerDependencies": {
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/glob": "^8.1.0",
     "typescript": "^5"
+  },
+  "dependencies": {
+    "glob": "^10.3.10"
   }
 }
