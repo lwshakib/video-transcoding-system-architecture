@@ -31,9 +31,6 @@ function getEnv(key: string, required = true, defaultValue?: string): string {
 export const NODE_ENV = getEnv("NODE_ENV", false, "development");
 // Internal port for the Express server (default: 8000)
 export const PORT = parseInt(getEnv("PORT", false, "8000"), 10);
-// External URL for the S3 Reverse Proxy (used to generate project preview links)
-export const S3_REVERSE_PROXY_URL = getEnv("S3_REVERSE_PROXY_URL", false);
-
 // --- AWS GLOBAL CONFIGURATION ---
 // AWS region for all service interactions (e.g., 'ap-south-1')
 export const AWS_REGION = getEnv("AWS_REGION", false, "ap-south-1");

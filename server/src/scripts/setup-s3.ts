@@ -75,6 +75,20 @@ async function setupS3() {
     await s3Service.putBucketPolicy(JSON.stringify(publicPolicy));
     
     logger.info(`✅ Public read policy attached.`);
+
+    // 5. Configure CORS to allow direct browser uploads
+    const corsRules = [
+      {
+        AllowedHeaders: ["*"],
+        AllowedMethods: ["GET", "PUT", "POST", "DELETE", "HEAD"],
+        AllowedOrigins: ["*"],
+        ExposeHeaders: ["ETag"],
+        MaxAgeSeconds: 3000,
+      },
+    ];
+    await s3Service.putBucketCors(corsRules);
+    logger.info(`✅ CORS configured for browser uploads.`);
+
     logger.info(`🎉 S3 setup complete! Your web files will be publicly accessible.`);
 
   } catch (error) {

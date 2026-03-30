@@ -4,10 +4,18 @@ import { postgresService } from "./services/postgres.services";
 import { s3Service } from "./services/s3.services";
 import { sqsService } from "./services/sqs.services";
 import logger from "./logger/winston.logger";
-import { PORT } from "./envs";
+import { PORT, S3_BUCKET_NAME, AWS_REGION } from "./envs";
 
 const app = express();
 const port = PORT;
+
+/**
+ * Helper to construct the public S3 URL for a given key.
+ */
+const getPublicUrl = (key: string | null) => {
+  if (!key) return null;
+  return `https://${S3_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/${key}`;
+};
 
 // --- MIDDLEWARE ---
 app.use(cors()); // Enable CORS for the web application
@@ -20,6 +28,56 @@ app.use(express.json()); // Parse JSON bodies
  */
 app.get("/", (req, res) => {
   res.json({ message: "Video Transcoding API is running!" });
+});
+
+/**
+ * GET /videos
+ * Purpose: Retrieves all video transcoding jobs.
+ */
+app.get("/videos", async (req, res) => {
+  try {
+    const result = await postgresService.query("SELECT * FROM videos ORDER BY created_at DESC");
+    const videos = result.rows.map((v) => ({
+      ...v,
+      url: getPublicUrl(v.url),
+      m3u8_url: getPublicUrl(v.m3u8_url),
+      subtitles_url: getPublicUrl(v.subtitles_url)
+    }));
+    res.json(videos);
+  } catch (error) {
+    logger.error("Error fetching videos:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+/**
+ * GET /videos/:id
+ * Purpose: Retrieves a specific video's status and constructed playback URLs.
+ */
+app.get("/videos/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await postgresService.query("SELECT * FROM videos WHERE id = $1", [id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    const v = result.rows[0];
+    
+    // Construct relevant data for the HLS player
+    res.json({
+      id: v.id,
+      title: v.title,
+      status: v.status.toLowerCase(),
+      masterPlaylist: getPublicUrl(v.m3u8_url),
+      thumbnail: getPublicUrl(`videos/${v.id}/transcoded/thumbnail.jpg`),
+      subtitles: getPublicUrl(v.subtitles_url),
+      previewPrefix: getPublicUrl(`videos/${v.id}/transcoded/previews/preview`), // preview1, preview2, etc.
+    });
+  } catch (error) {
+    logger.error("Error fetching video detail:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 /**
@@ -60,6 +118,34 @@ app.post("/videos", async (req, res) => {
 });
 
 /**
+ * DELETE /videos/:id
+ * Purpose: Removes a video from the library, including all S3 objects and the DB record.
+ */
+app.delete("/videos/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // 1. Check if the video exists to avoid unnecessary S3 calls
+    const checkResult = await postgresService.query("SELECT * FROM videos WHERE id = $1", [id]);
+    if (checkResult.rowCount === 0) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    // 2. Delete all files in S3 under the video's directory: 'videos/{id}/'
+    await s3Service.deleteFolder(`videos/${id}/`);
+
+    // 3. Remove the record from the database
+    await postgresService.query("DELETE FROM videos WHERE id = $1", [id]);
+
+    logger.info(`🔥 Successfully purged video and resources: ${id}`);
+    res.json({ message: "Video and associated resources deleted successfully" });
+  } catch (error) {
+    logger.error("Error deleting video:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+/**
  * POST /videos/:id/start
  * Purpose: Signals that the video has been uploaded to S3 and is ready for transcoding.
  */
@@ -94,4 +180,7 @@ app.post("/videos/:id/start", async (req, res) => {
 
 app.listen(port, () => {
   logger.info(`Server is running at http://localhost:${port}`);
+  
+  // Start polling SQS for transcoding jobs in the background
+  sqsService.startPolling();
 });

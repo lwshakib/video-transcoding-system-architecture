@@ -26,7 +26,8 @@ class DockerService {
       AWS_REGION: envs.AWS_REGION,
       AWS_ACCESS_KEY_ID: envs.AWS_ACCESS_KEY_ID,
       AWS_SECRET_ACCESS_KEY: envs.AWS_SECRET_ACCESS_KEY,
-      S3_BUCKET_NAME: envs.S3_BUCKET_NAME
+      S3_BUCKET_NAME: envs.S3_BUCKET_NAME,
+      DATABASE_URL: envs.DATABASE_URL
     };
 
     // Prepare the 'docker run' command arguments

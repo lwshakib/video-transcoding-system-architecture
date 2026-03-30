@@ -41,12 +41,10 @@ RUN bun run build
 # Ensure required directories exist
 RUN mkdir -p /tmp /mnt/original /mnt/transcoded
 
-# The script expects transcribe.py to be in the same directory as index.js
-# or we can adjust the path in index.ts. 
-# Our transcribe.py is in src/transcribe.py, and index.ts calls it as 'transcribe.py'.
-# So we should copy src/transcribe.py to the root or dist/ folder.
-RUN cp src/transcribe.py dist/transcribe.py
+# Copy Python transcription script to the root so it's accessible to the worker
+RUN cp src/transcribe.py transcribe.py
 
-WORKDIR /app/dist
+WORKDIR /app
 
+# Run the container from the root, pointing to the compiled JS in dist/
 CMD ["bun", "dist/index.js"]

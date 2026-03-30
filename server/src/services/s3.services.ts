@@ -15,7 +15,8 @@ import {
   DeleteBucketCommand,
   CreateBucketCommandInput,
   PutObjectCommand, 
-  GetObjectCommand 
+  GetObjectCommand,
+  PutBucketCorsCommand
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY, S3_BUCKET_NAME } from "../envs";
@@ -118,6 +119,19 @@ class S3Service {
   }
 
   /**
+   * Configures Cross-Origin Resource Sharing (CORS) rules.
+   */
+  async putBucketCors(corsRules: any[]) {
+    const command = new PutBucketCorsCommand({
+      Bucket: this.bucketName,
+      CORSConfiguration: {
+        CORSRules: corsRules,
+      },
+    });
+    return await this.client.send(command);
+  }
+
+  /**
    * Generates a pre-signed S3 URL for a client to upload a video file 
    * directly to the bucket.
    * @param videoId - Unique ID of the video from the database
@@ -140,6 +154,41 @@ class S3Service {
       return { url, key };
     } catch (error) {
       logger.error(`❌ Failed to generate pre-signed URL for video: ${videoId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Recursively deletes all objects with a specific prefix (e.g., a "folder").
+   * @param prefix - The directory path to remove (e.g., 'videos/123/')
+   */
+  async deleteFolder(prefix: string) {
+    logger.info(`🗑️ Attempting to delete S3 folder: ${prefix}`);
+    
+    try {
+      // 1. List all objects in the "folder"
+      const listResponse = await this.listObjects(prefix);
+      
+      if (!listResponse.Contents || listResponse.Contents.length === 0) {
+        logger.info(`ℹ️ Folder ${prefix} is already empty or doesn't exist.`);
+        return;
+      }
+
+      // 2. Extract keys of all objects
+      const keys = listResponse.Contents
+        .map((obj) => obj.Key)
+        .filter((key): key is string => !!key);
+
+      // 3. Bulk delete
+      await this.deleteObjects(keys);
+      logger.info(`✅ Successfully deleted ${keys.length} objects from ${prefix}`);
+      
+      // 4. Handle pagination if there are more than 1000 objects (rare for this use case)
+      if (listResponse.IsTruncated) {
+        await this.deleteFolder(prefix);
+      }
+    } catch (error) {
+      logger.error(`❌ Failed to delete S3 folder: ${prefix}`, error);
       throw error;
     }
   }

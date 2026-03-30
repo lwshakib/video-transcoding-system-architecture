@@ -2,14 +2,15 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { glob } from 'glob';
+import logger from './logger/winston.logger';
+import { s3Service } from './services/s3.services';
+import { postgresService } from './services/postgres.services';
+import { VIDEO_ID, VIDEO_URL } from './envs';
 
-// Helper to decode Base64
-const decodeBase64 = (b64: string) => Buffer.from(b64, 'base64').toString('utf-8');
-
-// Helper to run commands using spawn (safer against shell interpolation)
+// Helper to run commands using spawn
 const runCommand = (cmd: string, args: string[]): Promise<string> => {
   return new Promise((resolve, reject) => {
-    console.log(`Executing: ${cmd} ${args.join(' ')}`);
+    logger.info(`Executing: ${cmd} ${args.join(' ')}`);
     const child = spawn(cmd, args);
 
     let stdout = '';
@@ -22,7 +23,7 @@ const runCommand = (cmd: string, args: string[]): Promise<string> => {
       if (code === 0) {
         resolve(stdout.trim() || stderr.trim());
       } else {
-        console.error(`Command failed with code ${code}: ${stderr}`);
+        logger.error(`Command failed with code ${code}: ${stderr}`);
         reject(new Error(stderr || `Exit code ${code}`));
       }
     });
@@ -33,20 +34,9 @@ const runCommand = (cmd: string, args: string[]): Promise<string> => {
   });
 };
 
-const b64FileName = process.env.FILENAME_B64;
-const b64VideoTitle = process.env.VIDEO_TITLE_B64;
-const bucketUrl = process.env.BUCKET_URL;
-const sessionToken = process.env.SESSION_TOKEN;
 const baseMount = '/mnt';
-
-if (!b64FileName || !b64VideoTitle || !bucketUrl || !sessionToken) {
-  console.error('Missing required environment variables.');
-  process.exit(1);
-}
-
-const fileName = decodeBase64(b64FileName);
-const videoTitle = decodeBase64(b64VideoTitle);
-const inputPath = path.join(baseMount, 'original', fileName);
+const originalFileName = path.basename(VIDEO_URL); // Extracts filename from 'videos/ID/filename.mp4'
+const inputPath = path.join(baseMount, 'original', originalFileName);
 
 const TARGET_QUALITIES = [
   { name: '144p', width: 256, height: 144, bandwidth: 200000 },
@@ -60,44 +50,27 @@ const TARGET_QUALITIES = [
   { name: '4320p', width: 7680, height: 4320, bandwidth: 30000000 },
 ];
 
-if (!fs.existsSync(inputPath)) {
-  console.error(`Input file not found: ${inputPath}`);
-  process.exit(1);
-}
-
 const transcodeHLS = async (quality: any) => {
-  const localDir = path.join('/tmp', videoTitle, quality.name);
+  const localDir = path.join('/tmp', VIDEO_ID, quality.name);
   if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true });
 
   const playlistPath = path.join(localDir, 'index.m3u8');
 
-  console.log(`[HLS ${quality.name}] Processing ${quality.width}x${quality.height}...`);
+  logger.info(`[HLS ${quality.name}] Processing ${quality.width}x${quality.height}...`);
 
   const args = [
-    '-i',
-    inputPath,
-    '-vf',
-    `scale=${quality.width}:${quality.height}`,
-    '-c:v',
-    'libx264',
-    '-profile:v',
-    'baseline',
-    '-level',
-    '3.0',
-    '-c:a',
-    'aac',
-    '-ar',
-    '44100',
-    '-ac',
-    '2',
-    '-start_number',
-    '0',
-    '-hls_time',
-    '10',
-    '-hls_list_size',
-    '0',
-    '-f',
-    'hls',
+    '-i', inputPath,
+    '-vf', `scale=${quality.width}:${quality.height}`,
+    '-c:v', 'libx264',
+    '-profile:v', 'baseline',
+    '-level', '3.0',
+    '-c:a', 'aac',
+    '-ar', '44100',
+    '-ac', '2',
+    '-start_number', '0',
+    '-hls_time', '10',
+    '-hls_list_size', '0',
+    '-f', 'hls',
     playlistPath,
   ];
 
@@ -105,52 +78,43 @@ const transcodeHLS = async (quality: any) => {
   return localDir;
 };
 
-const uploadFile = async (localPath: string, relativePath: string) => {
-  const encodedPath = relativePath.split('/').map(encodeURIComponent).join('/');
-  const uploadUrl = `${bucketUrl}/upload/${encodedPath}?token=${sessionToken}`;
-  const fileStream = fs.createReadStream(localPath);
-
-  try {
-    const res = await fetch(uploadUrl, {
-      method: 'PUT',
-      body: fileStream,
-      // @ts-ignore
-      duplex: 'half',
-    });
-
-    if (!res.ok) {
-      throw new Error(`Upload failed for ${relativePath}: ${res.statusText}`);
-    }
-  } catch (err: any) {
-    console.error(`Failed to upload ${relativePath}:`, err.message);
-    throw err;
-  }
-};
-
 const uploadDirectory = async (localDir: string, remotePrefix: string) => {
   const files = await glob('**/*', { cwd: localDir, nodir: true });
-  console.log(`Uploading ${files.length} segments for: ${remotePrefix}`);
+  logger.info(`Uploading ${files.length} segments for: ${remotePrefix}`);
 
   for (const file of files) {
     const localFilePath = path.join(localDir, file);
-    // Force forward slashes for the remote path regardless of OS
     const remoteFilePath = path.join(remotePrefix, file).replace(/\\/g, '/');
-    await uploadFile(localFilePath, remoteFilePath);
+    
+    // Guess basic mime types
+    let contentType = undefined;
+    if (file.endsWith('.m3u8')) contentType = 'application/x-mpegURL';
+    if (file.endsWith('.ts')) contentType = 'video/MP2T';
+    if (file.endsWith('.jpg')) contentType = 'image/jpeg';
+    
+    await s3Service.uploadObject(remoteFilePath, localFilePath, contentType);
   }
 };
 
 async function run() {
   try {
-    // 1. Get Video Metadata
+    logger.info(`Starting Transcoding Job for Video ID: ${VIDEO_ID}`);
+    // 0. Set Status to PROCESSING
+    await postgresService.setProcessing();
+
+    // 1. Download source from S3
+    await s3Service.downloadObject(VIDEO_URL, inputPath);
+
+    if (!fs.existsSync(inputPath)) {
+      throw new Error(`Input file failed to download: ${inputPath}`);
+    }
+
+    // 2. Get Video Metadata
     const ffprobeResArgs = [
-      '-v',
-      'error',
-      '-select_streams',
-      'v:0',
-      '-show_entries',
-      'stream=width,height',
-      '-of',
-      'csv=s=x:p=0',
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height',
+      '-of', 'csv=s=x:p=0',
       inputPath,
     ];
     const resOutput = await runCommand('ffprobe', ffprobeResArgs);
@@ -160,101 +124,106 @@ async function run() {
     }
 
     const ffprobeDurArgs = [
-      '-v',
-      'error',
-      '-show_entries',
-      'format=duration',
-      '-of',
-      'default=noprint_wrappers=1:nokey=1',
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
       inputPath,
     ];
     const duration = parseFloat(await runCommand('ffprobe', ffprobeDurArgs));
 
-    console.log(`Source Video: ${inputWidth}x${inputHeight}, Duration: ${duration}s`);
+    logger.info(`Source Video Insights: ${inputWidth}x${inputHeight}, Duration: ${duration}s`);
 
     const applicableQualities = TARGET_QUALITIES.filter((q) => q.height <= inputHeight);
 
-    // 2. Transcode HLS
+    // 3. Transcode HLS
     let masterPlaylist = '#EXTM3U\n#EXT-X-VERSION:3\n';
+    const transcodedBasePrefix = `videos/${VIDEO_ID}/transcoded`;
+    
     for (const q of applicableQualities) {
-      await transcodeHLS(q);
-      const remotePrefix = `transcoded/${videoTitle}/${q.name}`;
-      await uploadDirectory(path.join('/tmp', videoTitle, q.name), remotePrefix);
+      const localQualityDir = await transcodeHLS(q);
+      const remotePrefix = `${transcodedBasePrefix}/${q.name}`;
+      
+      await uploadDirectory(localQualityDir, remotePrefix);
+      
       masterPlaylist += `#EXT-X-STREAM-INF:BANDWIDTH=${q.bandwidth},RESOLUTION=${q.width}x${q.height}\n`;
       masterPlaylist += `${q.name}/index.m3u8\n`;
     }
 
-    const masterPath = path.join('/tmp', videoTitle, 'master.m3u8');
-    fs.writeFileSync(masterPath, masterPlaylist);
-    await uploadFile(masterPath, `transcoded/${videoTitle}/master.m3u8`);
+    const localMasterPath = path.join('/tmp', VIDEO_ID, 'master.m3u8');
+    fs.writeFileSync(localMasterPath, masterPlaylist);
+    
+    const masterS3Key = `${transcodedBasePrefix}/master.m3u8`;
+    await s3Service.uploadObject(masterS3Key, localMasterPath, 'application/x-mpegURL');
 
-    // 3. Generate Main Thumbnail
-    const thumbPath = path.join('/tmp', videoTitle, 'thumbnail.jpg');
+    // 4. Generate Main Thumbnail
+    const localThumbPath = path.join('/tmp', VIDEO_ID, 'thumbnail.jpg');
     await runCommand('ffmpeg', [
-      '-i',
-      inputPath,
-      '-ss',
-      '00:00:01.000',
-      '-vframes',
-      '1',
-      thumbPath,
+      '-i', inputPath,
+      '-ss', '00:00:01.000',
+      '-vframes', '1',
+      localThumbPath,
     ]);
-    await uploadFile(thumbPath, `transcoded/${videoTitle}/thumbnail.jpg`);
+    const thumbS3Key = `${transcodedBasePrefix}/thumbnail.jpg`;
+    await s3Service.uploadObject(thumbS3Key, localThumbPath, 'image/jpeg');
 
-    // 4. Generate Preview Images (every 10 seconds)
-    const previewDir = path.join('/tmp', videoTitle, 'previews');
-    if (!fs.existsSync(previewDir)) fs.mkdirSync(previewDir, { recursive: true });
+    // 5. Generate Preview Images (every 10 seconds)
+    const localPreviewDir = path.join('/tmp', VIDEO_ID, 'previews');
+    if (!fs.existsSync(localPreviewDir)) fs.mkdirSync(localPreviewDir, { recursive: true });
 
-    console.log('Generating preview snapshots...');
+    logger.info('Generating preview snapshots...');
     await runCommand('ffmpeg', [
-      '-i',
-      inputPath,
-      '-vf',
-      'fps=1/10,scale=160:-1',
-      path.join(previewDir, 'preview%d.jpg'),
+      '-i', inputPath,
+      '-vf', 'fps=1/10,scale=160:-1',
+      path.join(localPreviewDir, 'preview%d.jpg'),
     ]);
-    await uploadDirectory(previewDir, `transcoded/${videoTitle}/previews`);
+    await uploadDirectory(localPreviewDir, `${transcodedBasePrefix}/previews`);
 
-    // 5. Generate Real AI Subtitles (Speech-to-Text)
-    const audioPath = path.join('/tmp', videoTitle, 'audio.wav');
-    const subtitlePath = path.join('/tmp', videoTitle, 'subtitles.vtt');
+    // 6. Generate Real AI Subtitles (Speech-to-Text)
+    const localAudioPath = path.join('/tmp', VIDEO_ID, 'audio.wav');
+    const localSubtitlePath = path.join('/tmp', VIDEO_ID, 'subtitles.vtt');
+    const subtitleS3Key = `videos/${VIDEO_ID}/subtitles.vtt`;
 
     try {
-      console.log('Extracting audio for transcription...');
+      logger.info('Extracting audio for transcription...');
       // Extract mono audio at 16kHz (preferred by Vosk)
       await runCommand('ffmpeg', [
-        '-i',
-        inputPath,
-        '-ar',
-        '16000',
-        '-ac',
-        '1',
-        '-c:a',
-        'pcm_s16le',
-        audioPath,
+        '-i', inputPath,
+        '-ar', '16000',
+        '-ac', '1',
+        '-c:a', 'pcm_s16le',
+        localAudioPath,
       ]);
 
-      console.log('Running AI transcription engine...');
-      await runCommand('python3', ['transcribe.py', audioPath, subtitlePath]);
+      logger.info('Running AI transcription engine...');
+      await runCommand('python3', ['transcribe.py', localAudioPath, localSubtitlePath]);
 
-      await uploadFile(subtitlePath, `transcoded/${videoTitle}/subtitles.vtt`);
-      console.log('AI Captions generated and uploaded successfully.');
+      await s3Service.uploadObject(subtitleS3Key, localSubtitlePath, 'text/vtt');
+      logger.info('✅ AI Captions generated and uploaded successfully.');
     } catch (err: any) {
-      console.error('STT Pipeline Failed:', err.message);
-      // Optional: Generate a fallback empty file so player track doesn't 404
+      logger.error('⚠️ STT Pipeline Failed, generating fallback subtitle...', err);
+      // Generate a fallback empty file so player track doesn't 404
       fs.writeFileSync(
-        subtitlePath,
+        localSubtitlePath,
         'WEBVTT\n\n1\n00:00:00.000 --> 00:00:10.000\n[Transcribing audio...]\n'
       );
-      await uploadFile(subtitlePath, `transcoded/${videoTitle}/subtitles.vtt`);
+      await s3Service.uploadObject(subtitleS3Key, localSubtitlePath, 'text/vtt');
     }
 
-    console.log(`Pipeline Finished Successfully.`);
+    // 7. Success Cleanup & DB Update
+    await postgresService.setCompleted(masterS3Key, subtitleS3Key);
+    logger.info(`🎉 Pipeline Finished Successfully for ${VIDEO_ID}.`);
+    
+    // Explicitly end postgres pool to exit process smoothly
+    await postgresService.end();
     process.exit(0);
+
   } catch (error) {
-    console.error('Pipeline Failure:', error);
+    logger.error('❌ Pipeline Failure:', error);
+    await postgresService.setFailed();
+    await postgresService.end();
     process.exit(1);
   }
 }
 
+// Start the core transcoding job
 run();

@@ -1,77 +1,155 @@
-"use client";
-
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import axios from "axios";
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { FileVideo, Clock } from "lucide-react";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { FileVideo, Clock, Loader2, CheckCircle2, AlertCircle, Trash2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface VideoItem {
   id: string;
   title: string;
   size: string;
-  status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+  status: "UPLOADING" | "PENDING" | "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+  progress?: number;
   createdAt: string;
 }
 
 interface VideoListProps {
   videos: VideoItem[];
+  onDelete: (id: string) => Promise<void>;
+  onAbort?: (id: string) => void;
 }
 
-export function VideoList({ videos }: VideoListProps) {
-  if (videos.length === 0) return null;
+export function VideoList({ videos, onDelete, onAbort }: VideoListProps) {
+  const router = useRouter();
 
-  const getStatusVariant = (status: VideoItem["status"]) => {
+  const renderStatusIcon = (status: VideoItem["status"]) => {
     switch (status) {
-      case "QUEUED": return "secondary";
-      case "PROCESSING": return "default";
-      case "COMPLETED": return "outline";
-      case "FAILED": return "destructive";
-      default: return "default";
+      case "PENDING": 
+      case "QUEUED": 
+        return <span title="Queued"><Clock className="w-4 h-4 text-zinc-500 animate-pulse" /></span>;
+      case "PROCESSING": 
+        return <span title="Processing"><Loader2 className="w-4 h-4 text-emerald-500 animate-spin" /></span>;
+      case "COMPLETED": 
+        return <span title="Completed"><CheckCircle2 className="w-4 h-4 text-emerald-500" /></span>;
+      case "FAILED": 
+        return <span title="Failed"><AlertCircle className="w-4 h-4 text-rose-500" /></span>;
+      default: 
+        return <Clock className="w-4 h-4 text-zinc-500" />;
     }
   };
 
+  if (videos.length === 0) return null;
+
   return (
-    <div className="w-full max-w-2xl mt-12 animate-in fade-in slide-in-from-top-4 duration-500">
-      <div className="flex items-center gap-2 mb-4 px-2">
-        <Clock className="w-4 h-4 text-zinc-500" />
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Transcoding Tasks
-        </h2>
-      </div>
-      
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+    <div className="w-full animate-in fade-in slide-in-from-top-4 duration-500">
+      <div className="">
         <Table>
-          <TableHeader className="bg-zinc-900/50">
-            <TableRow className="border-zinc-800 hover:bg-transparent">
-              <TableHead className="text-zinc-400 h-10">Video Name</TableHead>
-              <TableHead className="text-zinc-400 h-10">Size</TableHead>
-              <TableHead className="text-zinc-400 h-10 text-right">Status</TableHead>
-            </TableRow>
-          </TableHeader>
           <TableBody>
-            {videos.map((video) => (
-              <TableRow key={video.id} className="border-zinc-800 hover:bg-zinc-800/30 transition-colors">
-                <TableCell className="py-3">
-                  <div className="flex items-center gap-3">
-                    <FileVideo className="w-4 h-4 text-zinc-500" />
-                    <span className="font-medium text-zinc-200">{video.title}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-zinc-500 py-3">{video.size}</TableCell>
-                <TableCell className="text-right py-3">
-                  <Badge variant={getStatusVariant(video.status)} className="font-semibold text-[10px] px-2 py-0">
-                    {video.status}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
+            {videos.map((video) => {
+              const isUploading = video.status === "UPLOADING";
+              
+              return (
+                <TableRow 
+                  key={video.id} 
+                  className={cn(
+                    "border-none transition-colors group",
+                    isUploading ? "bg-zinc-900/40 animate-pulse" : "hover:bg-zinc-800/30 cursor-pointer"
+                  )}
+                  onClick={() => !isUploading && router.push(`/videos/${video.id}`)}
+                >
+                  <TableCell className="py-3 px-2">
+                    <div className="flex items-center gap-3">
+                      <FileVideo className={cn(
+                        "w-4 h-4 text-zinc-500",
+                        !isUploading && "group-hover:text-rose-500 transition-colors"
+                      )} />
+                      <span className={cn(
+                        "font-medium",
+                        isUploading ? "text-zinc-500" : "text-zinc-200 group-hover:text-white"
+                      )}>
+                        {video.title}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-zinc-500 py-3 font-mono text-[10px] hidden sm:table-cell">
+                    {video.size}
+                  </TableCell>
+                  <TableCell className="py-3 px-2 w-10">
+                     <div className="flex items-center justify-center">
+                        {isUploading ? (
+                          <span className="text-[10px] font-bold text-zinc-500">{video.progress || 0}%</span>
+                        ) : renderStatusIcon(video.status)}
+                     </div>
+                  </TableCell>
+                  <TableCell className="py-3 px-2 w-10 text-right">
+                    {isUploading ? (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-zinc-600 hover:text-rose-500 transition-all"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAbort?.(video.id);
+                        }}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    ) : (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-zinc-600 hover:text-rose-500 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                            onClick={(e) => e.stopPropagation()} // Prevent navigation on click
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-zinc-950 border-zinc-800 text-white">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-zinc-400">
+                              This action cannot be undone. This will permanently delete the video file from S3 and remove the record from our database.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800">Cancel</AlertDialogCancel>
+                            <AlertDialogAction 
+                              className="bg-rose-600 hover:bg-rose-700 text-white border-none"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(video.id);
+                              }}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

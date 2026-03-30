@@ -15,7 +15,8 @@ import {
   ECS_SECURITY_GROUPS, 
   ECS_SUBNETS, 
   ECS_TASK_DEFINITION_ARN, 
-  S3_BUCKET_NAME 
+  S3_BUCKET_NAME,
+  DATABASE_URL
 } from "../envs";
 
 class ECSService {
@@ -74,6 +75,7 @@ class ECSService {
               { name: "AWS_ACCESS_KEY_ID", value: AWS_ACCESS_KEY_ID },
               { name: "AWS_SECRET_ACCESS_KEY", value: AWS_SECRET_ACCESS_KEY },
               { name: "S3_BUCKET_NAME", value: S3_BUCKET_NAME },
+              { name: "DATABASE_URL", value: DATABASE_URL },
             ],
           },
         ],
