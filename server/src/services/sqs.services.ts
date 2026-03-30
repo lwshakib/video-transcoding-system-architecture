@@ -42,7 +42,7 @@ class SQSService {
 
   /**
    * Pushes a new transcoding task payload to the SQS queue.
-   * @param payload - Data containing Git URL, Project ID, and Deployment ID
+   * @param videoId - Unique ID of the video from the database
    */
   async sendMessage(payload: any) {
     const command = new SendMessageCommand({
@@ -52,10 +52,10 @@ class SQSService {
 
     try {
       const response = await this.client.send(command);
-      logger.info(`📨 Message pushed to SQS: ${response.MessageId}`);
+      logger.info(`📨 Transcoding job pushed to SQS: ${response.MessageId}`);
       return response;
     } catch (error) {
-      logger.error("❌ Failed to send message to SQS:", error);
+      logger.error("❌ Failed to push transcoding job to SQS:", error);
       throw error;
     }
   }
@@ -83,21 +83,20 @@ class SQSService {
           for (const message of response.Messages) {
             if (message.Body) {
               const payload = JSON.parse(message.Body);
-              logger.info(`📥 Received deployment request from SQS: ${payload.deploymentId}`);
+              logger.info(`📥 Received transcoding request from SQS: ${payload.videoId}`);
 
               // Determine execution mode (Local Docker vs AWS ECS)
               const isDev = NODE_ENV === "development";
               
               const taskParams = {
-                gitURL: payload.gitURL,
-                projectId: payload.projectId,
-                deploymentId: payload.deploymentId,
-                projectName: payload.projectName,
+                videoId: payload.videoId,
+                thumbnailUrl: payload.thumbnailUrl, // Not implemented yet, but keeping for future
+                videoUrl: payload.videoUrl, // S3 URL to the original video
               };
 
               // --- STATUS UPDATE: PROCESSING ---
               try {
-                await postgresService.query("UPDATE deployments SET status = 'PROCESSING' WHERE id = $1", [payload.deploymentId]);
+                await postgresService.query("UPDATE videos SET status = 'PROCESSING' WHERE id = $1", [payload.videoId]);
               } catch (err) {
                 logger.error("❌ Failed to update status to PROCESSING:", err);
               }
@@ -123,7 +122,7 @@ class SQSService {
               } catch (error) {
                 // Fail-safe: Update status if the transcoding task fails to even start
                 logger.error("❌ Failed to execute transcoding task, updating status to FAILED:", error);
-                await postgresService.query("UPDATE deployments SET status = 'FAILED' WHERE id = $1", [payload.deploymentId]);
+                await postgresService.query("UPDATE videos SET status = 'FAILED' WHERE id = $1", [payload.videoId]);
                 
                 // Cleanup the dead message from the queue
                 await this.client.send(new DeleteMessageCommand({

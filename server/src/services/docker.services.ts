@@ -10,17 +10,16 @@ import * as envs from "../envs";
 
 class DockerService {
   /**
-   * Spawns a new Docker process to run the project builder container locally.
-   * @param params - Build metadata including Git URL and unique identifiers
-   * @returns A promise that resolves if the build completes successfully
+   * Spawns a new Docker process to run the transcoding container locally.
+   * @param params - Video metadata including unique ID and source URL
+   * @returns A promise that resolves if the transcoding completes successfully
    */
   async runTask(params: {
-    gitURL: string;
-    projectId: string;
-    deploymentId: string;
-    projectName: string;
+    videoId: string;
+    videoUrl: string;
+    thumbnailUrl?: string;
   }) {
-    const { gitURL, projectId, deploymentId, projectName } = params;
+    const { videoId, videoUrl } = params;
 
     // Define the environment variables the container needs to interact with S3
     const envVars: Record<string, string | undefined> = {
@@ -31,7 +30,7 @@ class DockerService {
     };
 
     // Prepare the 'docker run' command arguments
-    const args = ["run", "--rm"]; // --rm ensures the container is deleted after exiting
+    const args = ["run", "--rm"];
 
     // Inject system-wide environment variables into the container
     Object.entries(envVars).forEach(([key, value]) => {
@@ -40,16 +39,14 @@ class DockerService {
       }
     });
 
-    // Inject deployment-specific build parameters
-    args.push("-e", `GIT_REPOSITORY__URL=${gitURL}`);
-    args.push("-e", `PROJECT_ID=${projectId}`);
-    args.push("-e", `DEPLOYMENT_ID=${deploymentId}`);
-    args.push("-e", `PROJECT_NAME=${projectName}`);
+    // Inject video-specific transcoding parameters
+    args.push("-e", `VIDEO_ID=${videoId}`);
+    args.push("-e", `VIDEO_URL=${videoUrl}`);
 
     // Specify the local image name to run
     args.push("transcoding-container:latest");
 
-    logger.info(`🛠️ Triggering local Docker transcoding build for project: ${projectName}...`);
+    logger.info(`🛠️ Triggering local Docker transcoding for video: ${videoId}...`);
 
     return new Promise((resolve, reject) => {
       // Spawn the 'docker' command as a child process

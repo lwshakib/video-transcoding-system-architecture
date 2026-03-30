@@ -27,35 +27,22 @@ async function setupPostgres() {
 
   logger.info("🚀 Starting PostgreSQL setup...");
 
-  // Schema: Projects table stores repository and sub-domain mapping
-  const createProjectsTable = `
-    CREATE TABLE IF NOT EXISTS projects (
+  // Schema: Videos table stores the core transcoding task metadata
+  const createVideosTable = `
+    CREATE TABLE IF NOT EXISTS videos (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      name TEXT NOT NULL,
-      git_url TEXT NOT NULL,
-      sub_domain TEXT NOT NULL UNIQUE,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-  `;
-
-  // Schema: Deployments table tracks the status of builds linked to projects
-  const createDeploymentsTable = `
-    CREATE TABLE IF NOT EXISTS deployments (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
-      status TEXT NOT NULL DEFAULT 'QUEUED',
+      title TEXT NOT NULL,
+      url TEXT NOT NULL,
+      m3u8_url TEXT, -- Optional, populated after transcoding
+      status TEXT NOT NULL DEFAULT 'PENDING', -- PENDING, QUEUED, PROCESSING, COMPLETED, FAILED
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `;
 
   try {
-    // 1. Create Projects table
-    await client.query(createProjectsTable);
-    logger.info("✅ Projects table is ready.");
-    
-    // 2. Create Deployments table
-    await client.query(createDeploymentsTable);
-    logger.info("✅ Deployments table is ready.");
+    // 1. Create Videos table
+    await client.query(createVideosTable);
+    logger.info("✅ Videos table is ready.");
   } catch (error) {
     logger.error("❌ PostgreSQL setup failed:", error);
     process.exit(1);

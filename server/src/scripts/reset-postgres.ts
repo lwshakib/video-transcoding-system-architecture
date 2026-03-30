@@ -27,8 +27,7 @@ async function resetPostgres() {
 
   // Define the reset query: Drop tables with CASCADE to handle foreign key dependencies
   const resetQuery = `
-    DROP TABLE IF EXISTS deployments CASCADE;
-    DROP TABLE IF EXISTS projects CASCADE;
+    DROP TABLE IF EXISTS videos CASCADE;
   `;
 
   try {

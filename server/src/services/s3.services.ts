@@ -118,6 +118,33 @@ class S3Service {
   }
 
   /**
+   * Generates a pre-signed S3 URL for a client to upload a video file 
+   * directly to the bucket.
+   * @param videoId - Unique ID of the video from the database
+   * @param fileName - Name of the file being uploaded
+   * @param contentType - MIME type of the file
+   * @returns A promise that resolves to the pre-signed URL
+   */
+  async getPreSignedUploadUrl(videoId: string, fileName: string, contentType: string) {
+    const key = `videos/${videoId}/${fileName}`;
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    try {
+      // Generate a URL that expires in 60 minutes
+      const url = await getSignedUrl(this.client, command, { expiresIn: 3600 });
+      logger.info(`🔗 Generated pre-signed URL for video: ${videoId}`);
+      return { url, key };
+    } catch (error) {
+      logger.error(`❌ Failed to generate pre-signed URL for video: ${videoId}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Completely removes the bucket from AWS.
    */
   async deleteBucket() {

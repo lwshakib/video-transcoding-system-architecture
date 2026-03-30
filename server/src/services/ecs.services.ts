@@ -36,43 +36,39 @@ class ECSService {
   }
 
   /**
-   * Triggers a new ECS Fargate task to build a React application.
-   * @param params - Configuration for the specific build task
+   * Triggers a new ECS Fargate task to transcode a video.
+   * @param params - Video metadata including unique ID and source URL
    * @returns The ECS response including the Task ARN
    */
   async runTask(params: {
-    gitURL: string;
-    projectId: string;
-    deploymentId: string;
-    projectName: string;
+    videoId: string;
+    videoUrl: string;
+    thumbnailUrl?: string;
   }) {
-    const { gitURL, projectId, deploymentId, projectName } = params;
+    const { videoId, videoUrl } = params;
 
     // Construct the command to run a single Fargate task
     const command = new RunTaskCommand({
       cluster: ECS_CLUSTER_ARN,
       taskDefinition: ECS_TASK_DEFINITION_ARN,
       launchType: "FARGATE",
-      count: 1, // Only one container per build
+      count: 1,
       networkConfiguration: {
         awsvpcConfiguration: {
-          // Required for the container to pull images and reach SQS/Kafka
           assignPublicIp: "ENABLED",
           subnets: ECS_SUBNETS.split(","),
           securityGroups: ECS_SECURITY_GROUPS.split(","),
         },
       },
-      // Environment variable overrides to pass the build context into the container
+      // Environment variable overrides to pass the transcoding context into the container
       overrides: {
         containerOverrides: [
           {
             name: ECS_CONTAINER_NAME,
             environment: [
-              // Deployment Context
-              { name: "GIT_REPOSITORY__URL", value: gitURL },
-              { name: "PROJECT_ID", value: projectId },
-              { name: "DEPLOYMENT_ID", value: deploymentId },
-              { name: "PROJECT_NAME", value: projectName },
+              // Transcoding Context
+              { name: "VIDEO_ID", value: videoId },
+              { name: "VIDEO_URL", value: videoUrl },
               // Global Infrastructure Credentials & Endpoints
               { name: "AWS_REGION", value: AWS_REGION },
               { name: "AWS_ACCESS_KEY_ID", value: AWS_ACCESS_KEY_ID },
@@ -87,7 +83,7 @@ class ECSService {
     try {
       // Execute the command via the AWS SDK
       const response = await this.client.send(command);
-      logger.info(`🚀 ECS Task triggered: ${response.tasks?.[0]?.taskArn}`);
+      logger.info(`🚀 ECS Transcoding Task triggered: ${response.tasks?.[0]?.taskArn}`);
       return response;
     } catch (error) {
       logger.error("❌ ECS Task trigger error:", error);
