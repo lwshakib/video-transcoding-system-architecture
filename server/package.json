@@ -6,14 +6,42 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "build": "tsc",
-    "start": "bun run dist/index.js"
+    "start": "bun run dist/index.js",
+    "postgres:setup": "bun run src/scripts/setup-postgres.ts",
+    "s3:setup": "bun run src/scripts/setup-s3.ts",
+    "sqs:setup": "bun run src/scripts/setup-sqs.ts",
+    "ecs:setup": "bun run src/scripts/setup-ecs.ts",
+    "postgres:reset": "bun run src/scripts/reset-postgres.ts",
+    "s3:reset": "bun run src/scripts/reset-s3.ts",
+    "sqs:reset": "bun run src/scripts/reset-sqs.ts",
+    "ecs:reset": "bun run src/scripts/reset-ecs.ts",
+    "infra:setup": "bun run postgres:setup && bun run s3:setup && bun run sqs:setup && bun run ecs:setup",
+    "infra:reset": "bun run ecs:reset && bun run sqs:reset && bun run s3:reset && bun run postgres:reset"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.9",
+    "@types/pg": "^8.11.0",
+    "@types/uuid": "^10.0.0",
     "typescript": "^5"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "@aws-sdk/client-cloudwatch-logs": "^3.712.0",
+    "@aws-sdk/client-ec2": "^3.712.0",
+    "@aws-sdk/client-ecr": "^3.712.0",
+    "@aws-sdk/client-ecs": "^3.712.0",
+    "@aws-sdk/client-iam": "^3.712.0",
+    "@aws-sdk/client-s3": "^3.712.0",
+    "@aws-sdk/client-sqs": "^3.712.0",
+    "@aws-sdk/s3-request-presigner": "^3.712.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "morgan": "^1.10.0",
+    "pg": "^8.11.5",
+    "random-word-slugs": "^0.1.7",
+    "uuid": "^10.0.0",
+    "winston": "^3.13.0",
+    "zod": "^3.23.8"
   }
 }
