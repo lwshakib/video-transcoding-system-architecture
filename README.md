@@ -38,17 +38,25 @@ Ensure you have the following installed on your machine:
 - [Docker](https://www.docker.com/) (For local worker execution)
 - [PostgreSQL](https://www.postgresql.org/)
 
-### 2. Infrastructure Setup
+### 2. Clone and Setup
+Clone the repository and install dependencies:
+```bash
+git clone https://github.com/lwshakib/video-transcoding-system-architecture.git
+cd video-transcoding-system-architecture
+bun install
+```
+
+### 3. Infrastructure Setup
 The system requires an active AWS environment (S3, SQS, ECS, ECR). 
 Follow the **[AWS Configuration Guide](./AWS_CONFIGURATION.md)** to 
 provision your cloud resources either manually or via automated scripts.
 
-### 3. Local Development
+### 4. Local Development
 To run all services locally:
 ```bash
 # In separate terminal windows
-cd server && bun install && bun run dev
-cd web    && bun install && bun run dev
+cd server && bun run dev
+cd web    && bun run dev
 ```
 
 ---

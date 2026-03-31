@@ -24,12 +24,18 @@ inspire, and create.
   the project's roadmap.
 
 ### 💻 Submitting Pull Requests
-1. **Fork the repository** and create your branch from `main`.
-2. **Setup your environment** (see the local development section).
-3. **Commit your changes** with descriptive messages.
-4. **Run tests** and linting to ensure quality.
-5. **Update documentation** if you are changing any core functionality.
-6. **Submit the PR** and wait for feedback!
+1. **Fork the repository** to your own GitHub account: `https://github.com/lwshakib/video-transcoding-system-architecture/fork`.
+2. **Clone your fork** and create your branch from `main`:
+   ```bash
+   git clone https://github.com/YOUR_GITHUB_USERNAME/video-transcoding-system-architecture.git
+   cd video-transcoding-system-architecture
+   git checkout -b your-feature-name
+   ```
+3. **Setup your environment** (see the local development section).
+4. **Commit your changes** with descriptive messages.
+5. **Run tests** and linting to ensure quality.
+6. **Update documentation** if you are changing any core functionality.
+7. **Submit the PR** and wait for feedback!
 
 ---
 
