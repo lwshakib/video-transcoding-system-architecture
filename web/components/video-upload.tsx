@@ -10,10 +10,9 @@
  */
 
 import React, { useState, useCallback } from "react";
-import { Upload, FileVideo, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import axios, { isAxiosError } from "axios";
+import axios from "axios";
 
 import { VideoItem } from "./video-list";
 
@@ -50,19 +49,19 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
   /**
    * Utility: Ensures the selected file is actually a video format.
    */
-  const validateFile = (file: File) => {
+  const validateFile = useCallback((file: File) => {
     if (!file.type.startsWith("video/")) {
       setError("Please upload a valid video file (MP4, MKV, etc.)");
       return false;
     }
     setError(null);
     return true;
-  };
+  }, []);
 
   /**
    * Core Orchestrator: Executes the 6-step upload and registration sequence.
    */
-  const startUpload = async (file: File) => {
+  const startUpload = useCallback(async (file: File) => {
     setIsUploading(true);
     setError(null);
     
@@ -148,7 +147,7 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
       setError("Upload failed. Please check your connection and try again.");
       setIsUploading(false);
     }
-  };
+  }, [onVideoAdded, onProgress, onComplete]);
 
   /**
    * Handler: Triggered when a file is dropped directly onto the component.
@@ -164,7 +163,7 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
         startUpload(droppedFile);
       }
     }
-  }, []);
+  }, [validateFile, startUpload]);
 
   /**
    * Handler: Triggered when a file is selected via the native OS file picker.
@@ -187,8 +186,9 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
           "relative group rounded-xl border border-dashed transition-all duration-200 py-16 flex flex-col items-center justify-center gap-4",
           dragActive
             ? "border-primary bg-primary/5" // Active state (Emerald)
-            : "border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900/50", // Idle/Hover state
-          "cursor-pointer"
+            : "border-zinc-800 bg-zinc-900/30 hover:bg-zinc-910/50", // Idle/Hover state
+          (isUploading || dragActive) && "cursor-default pointer-events-none opacity-60",
+          !isUploading && "cursor-pointer"
         )}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
@@ -197,7 +197,11 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
       >
         {/* Animated Central Icon */}
         <div className="p-4 rounded-full bg-zinc-800 mb-2">
-          <Upload className="w-6 h-6 text-zinc-500" />
+          {isUploading ? (
+            <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
+          ) : (
+            <Upload className="w-6 h-6 text-zinc-500" />
+          )}
         </div>
         
         {/* Instruction Text */}

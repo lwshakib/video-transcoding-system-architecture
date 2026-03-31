@@ -7,16 +7,15 @@
  * It uses hls.js for cross-browser adaptive bitrate streaming.
  */
 
-import React, { useEffect, useRef, useState, use } from 'react';
+import React, { useEffect, useRef, useState, use, useCallback } from 'react';
 import Link from 'next/link';
 import Script from 'next/script';
+import Image from 'next/image';
 import { 
   ArrowLeft, 
-  Loader2, 
   Settings, 
   ChevronRight, 
   ChevronLeft, 
-  Check,
   Maximize,
   Minimize,
   Volume2,
@@ -28,7 +27,7 @@ import {
   RectangleHorizontal
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Item, ItemContent, ItemMedia, ItemTitle, ItemActions } from '@/components/ui/item';
+import { Item, ItemContent, ItemTitle, ItemActions } from '@/components/ui/item';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -47,6 +46,21 @@ interface Video {
   thumbnail_url?: string;
   subtitles_url?: string;
   previews_url?: string;
+}
+
+// Minimal HLS types to replace 'any'
+interface HlsLevel {
+  height: number;
+}
+
+interface HlsInstance {
+  levels: HlsLevel[];
+  autoLevelEnabled: boolean;
+  on: (event: string, callback: (...args: any[]) => void) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
+  loadSource: (url: string) => void;
+  attachMedia: (el: HTMLVideoElement) => void;
+  destroy: () => void;
+  nextLevel: number;
 }
 
 // Global formatter for video time (ensures 00:05 instead of 0:5).
@@ -101,7 +115,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
   const [menuLevel, setMenuLevel] = useState<'main' | 'quality' | 'speed'>('main');
   
   // HLS/Bitrate State: Available resolutions and currently active quality level.
-  const [hlsLevels, setHlsLevels] = useState<any[]>([]);
+  const [hlsLevels, setHlsLevels] = useState<HlsLevel[]>([]);
   const [currentQuality, setCurrentQuality] = useState(-1); // -1 signifies 'Auto'.
   const [actualQuality, setActualQuality] = useState<number>(-1); // The real level chosen by hls.js auto-bitrate.
   
@@ -114,12 +128,12 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
-  const hlsRef = useRef<any>(null); // Persistence ref for the Hls.js instance.
+  const hlsRef = useRef<HlsInstance | null>(null); // Persistence ref for the Hls.js instance.
 
   /**
    * Data Fetcher: Retrieves video metadata from the server.
    */
-  const fetchVideo = async () => {
+  const fetchVideo = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API_URL}/videos/${params.id}`);
       setVideo(data);
@@ -128,7 +142,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id]);
 
   /**
    * Status Polling: Keeps the UI updated if the video is still processing in the backend.
@@ -142,35 +156,31 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [params.id, video?.status]);
+  }, [fetchVideo, video?.status]);
 
   /**
    * HLS Initializer: Triggers the setup of hls.js when the video becomes 'completed'.
    */
-  useEffect(() => {
-    if (video?.status === 'completed') initHls();
-  }, [video?.id, video?.status]);
-
-  /**
-   * Core Player Setup: Configures hls.js for adaptive streaming.
-   */
-  const initHls = () => {
+  const initHls = useCallback(() => {
     if (!video || !videoRef.current || video.status !== 'completed' || !video.m3u8_url) return;
 
     // Check if the browser supports Media Source Extensions (MSE) via hls.js.
-    if ((window as any).Hls && (window as any).Hls.isSupported()) {
+    // Check if the browser supports Media Source Extensions (MSE) via hls.js.
+    const windowHls = (window as any).Hls; // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (windowHls && windowHls.isSupported()) {
       if (hlsRef.current) hlsRef.current.destroy(); // Cleanup previous instances.
       
-      const hls = new (window as any).Hls();
+      const hls = new windowHls() as HlsInstance;
       hlsRef.current = hls;
 
       // Event: Manifest parsed -> Quality levels are now known.
-      hls.on((window as any).Hls.Events.MANIFEST_PARSED, () => {
+      hls.on(windowHls.Events.MANIFEST_PARSED, () => {
         setHlsLevels(hls.levels);
       });
 
       // Event: Level switched -> hls.js changed resolution (either auto or manual).
-      hls.on((window as any).Hls.Events.LEVEL_SWITCHED, (_: any, data: any) => {
+      hls.on(windowHls.Events.LEVEL_SWITCHED, (...args: any[]) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        const data = args[1] as { level: number };
         setActualQuality(data.level);
         if (hls.autoLevelEnabled) {
           setCurrentQuality(-1);
@@ -186,7 +196,11 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
     else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
       videoRef.current.src = video.m3u8_url;
     }
-  };
+  }, [video]);
+
+  useEffect(() => {
+    if (video?.status === 'completed') initHls();
+  }, [video?.id, video?.status, initHls]);
 
   /**
    * Video Event Listeners: Sync HTML5 <video> state with React state.
@@ -244,7 +258,11 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
   // UI Helper: Toggle Play/Pause state.
   const togglePlay = () => {
     if (!videoRef.current) return;
-    videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+    } else {
+      videoRef.current.pause();
+    }
   };
 
   // UI Helper: Switch between normal and wide theater view.
@@ -294,7 +312,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
   /**
    * Handler: Updates the hover preview position on the timeline.
    */
-  const handleTimelineUpdate = (e: React.MouseEvent | MouseEvent) => {
+  const handleTimelineUpdate = useCallback((e: React.MouseEvent | MouseEvent) => {
     if (!timelineContainerRef.current || !videoRef.current) return;
     const rect = timelineContainerRef.current.getBoundingClientRect();
     // Calculate the percentage of the click/hover relative to the timeline width.
@@ -305,12 +323,12 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
       e.preventDefault();
       setProgressPosition(percent);
     }
-  };
+  }, [isScrubbing]);
 
   /**
    * Core Handler: Manages the 'Scrubbing' logic (seeking through the video).
    */
-  const toggleScrubbingInternal = (e: React.MouseEvent | MouseEvent, forceState?: boolean) => {
+  const toggleScrubbingInternal = useCallback((e: React.MouseEvent | MouseEvent, forceState?: boolean) => {
     if (!timelineContainerRef.current || !videoRef.current) return;
     const rect = timelineContainerRef.current.getBoundingClientRect();
     const percent = Math.min(Math.max(0, e.clientX - rect.x), rect.width) / rect.width;
@@ -326,10 +344,12 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
     } else {
       // Post-scrub: Seek to the new time and resume playback if it was playing before.
       videoRef.current.currentTime = percent * duration;
-      if (!wasPaused.current) videoRef.current.play();
+      if (!wasPaused.current) {
+        videoRef.current.play().catch(err => console.error("Playback error after scrub:", err));
+      }
     }
     handleTimelineUpdate(e);
-  };
+  }, [duration, handleTimelineUpdate]);
 
   /**
    * Global Scrubbing Listener: Handles mouse release/movement outside the container.
@@ -347,7 +367,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousemove', handleGlobalMouseMove);
     };
-  }, [isScrubbing, duration]);
+  }, [isScrubbing, handleTimelineUpdate, toggleScrubbingInternal]);
 
   // UI Branch: Show skeleton while metadata is loading.
   if (loading) {
@@ -406,7 +426,16 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
       {/* CUSTOM PLAYER CONTAINER */}
       <div className={containerClasses} data-volume-level={volumeLevel} ref={containerRef}>
         {/* Placeholder image while video source initializes */}
-        <img className="thumbnail-img" src={video.thumbnail_url} alt="thumbnail" />
+        {video.thumbnail_url && (
+          <Image 
+            className="thumbnail-img" 
+            src={video.thumbnail_url} 
+            alt="thumbnail" 
+            fill 
+            unoptimized 
+            priority
+          />
+        )}
 
         <div className="video-controls-container">
           {/* TIMELINE: Interactive progress and preview bar */}
@@ -424,7 +453,16 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
           >
             <div className="timeline">
               {/* Floating hover thumbnail */}
-              <img className="preview-img" src={previewImgSrc} alt="preview" />
+              {previewImgSrc && (
+                <Image 
+                  className="preview-img" 
+                  src={previewImgSrc} 
+                  alt="preview" 
+                  width={160} 
+                  height={90} 
+                  unoptimized 
+                />
+              )}
               <div className="thumb-indicator"></div>
             </div>
           </div>
