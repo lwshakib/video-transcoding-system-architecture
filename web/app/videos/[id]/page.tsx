@@ -17,8 +17,8 @@ import {
   VolumeX,
   Play,
   Pause,
-  Monitor,
-  Airplay
+  Captions,
+  RectangleHorizontal
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Item, ItemContent, ItemMedia, ItemTitle, ItemActions } from '@/components/ui/item';
@@ -355,20 +355,20 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
                 onValueChange={handleVolumeChange}
               />
             </div>
-            <div className="duration-container ml-2">
+            <div className="duration-container">
               <span className="current-time">{formatDuration(currentTime)}</span>
               <span className="mx-1 opacity-30">/</span>
               <span className="total-time">{formatDuration(duration)}</span>
             </div>
             
             <button 
-              className={cn("captions-btn transition-colors", isCaptions && "text-rose-500")} 
+              className={cn("captions-btn transition-colors -mr-4", isCaptions && "text-rose-500")} 
               onClick={toggleCaptions}
             >
-              <Monitor size={18} />
+              <Captions size={18} />
             </button>
 
-            <div className="settings-wrapper mx-2">
+            <div className="settings-wrapper">
               <Popover open={isSettingsOpen} onOpenChange={(open) => {
                 setIsSettingsOpen(open);
                 if (!open) setMenuLevel('main');
@@ -513,7 +513,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
             </div>
 
             <button className="theater-btn" onClick={toggleTheaterMode}>
-               <Airplay size={20} className={cn("transition-colors", isTheater && "text-rose-500")} />
+               <RectangleHorizontal size={20} className={cn("transition-colors", isTheater && "text-rose-500")} />
             </button>
             <button className="full-screen-btn" onClick={toggleFullScreenMode}>
                {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
