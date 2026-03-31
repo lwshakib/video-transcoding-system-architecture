@@ -162,27 +162,35 @@ async function run() {
     await s3Service.uploadObject(masterS3Key, localMasterPath, 'application/x-mpegURL');
 
     // 4. Generate Main Thumbnail
-    const localThumbPath = path.join('/tmp', VIDEO_ID, 'thumbnail.jpg');
-    await runCommand('ffmpeg', [
-      '-i', inputPath,
-      '-ss', '00:00:01.000',
-      '-vframes', '1',
-      localThumbPath,
-    ]);
-    const thumbS3Key = `${VIDEO_ID}/thumbnail.jpg`;
-    await s3Service.uploadObject(thumbS3Key, localThumbPath, 'image/jpeg');
+    try {
+      const localThumbPath = path.join('/tmp', VIDEO_ID, 'thumbnail.jpg');
+      await runCommand('ffmpeg', [
+        '-i', inputPath,
+        '-ss', '00:00:01.000',
+        '-vframes', '1',
+        localThumbPath,
+      ]);
+      const thumbS3Key = `${VIDEO_ID}/thumbnail.jpg`;
+      await s3Service.uploadObject(thumbS3Key, localThumbPath, 'image/jpeg');
+    } catch (err) {
+      logger.error('⚠️ Thumbnail generation failed, skipping...', err);
+    }
 
     // 5. Generate Preview Images (every 10 seconds)
-    const localPreviewDir = path.join('/tmp', VIDEO_ID, 'previews');
-    if (!fs.existsSync(localPreviewDir)) fs.mkdirSync(localPreviewDir, { recursive: true });
+    try {
+      const localPreviewDir = path.join('/tmp', VIDEO_ID, 'previews');
+      if (!fs.existsSync(localPreviewDir)) fs.mkdirSync(localPreviewDir, { recursive: true });
 
-    logger.info('Generating preview snapshots...');
-    await runCommand('ffmpeg', [
-      '-i', inputPath,
-      '-vf', 'fps=1/10,scale=160:-1',
-      path.join(localPreviewDir, 'preview%d.jpg'),
-    ]);
-    await uploadDirectory(localPreviewDir, `${VIDEO_ID}/previews`);
+      logger.info('Generating preview snapshots...');
+      await runCommand('ffmpeg', [
+        '-i', inputPath,
+        '-vf', 'fps=1/10,scale=160:-1',
+        path.join(localPreviewDir, 'preview%d.jpg'),
+      ]);
+      await uploadDirectory(localPreviewDir, `${VIDEO_ID}/previews`);
+    } catch (err) {
+      logger.error('⚠️ Preview generation failed, skipping...', err);
+    }
 
     // 6. Generate Real AI Subtitles (Speech-to-Text)
     const localAudioPath = path.join('/tmp', VIDEO_ID, 'audio.wav');
@@ -216,7 +224,7 @@ async function run() {
     }
 
     // 7. Success Cleanup & DB Update
-    await postgresService.setCompleted(masterS3Key, sourceS3Key, subtitleS3Key);
+    await postgresService.setCompleted();
     logger.info(`🎉 Pipeline Finished Successfully for ${VIDEO_ID}.`);
     
     // Explicitly end postgres pool to exit process smoothly
@@ -225,6 +233,9 @@ async function run() {
 
   } catch (error) {
     logger.error('❌ Pipeline Failure:', error);
+    if (error instanceof Error) {
+      logger.error(error.stack);
+    }
     await postgresService.setFailed();
     await postgresService.end();
     process.exit(1);

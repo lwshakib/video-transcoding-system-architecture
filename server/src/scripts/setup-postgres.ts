@@ -32,9 +32,7 @@ async function setupPostgres() {
     CREATE TABLE IF NOT EXISTS videos (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       title TEXT NOT NULL,
-      url TEXT NOT NULL,
-      m3u8_url TEXT, -- Optional, populated after transcoding
-      subtitles_url TEXT, -- Optional, populated after AI transcription
+      url TEXT NOT NULL, -- Original source video S3 key
       status TEXT NOT NULL DEFAULT 'UPLOADING', -- UPLOADING, QUEUED, PROCESSING, COMPLETED, FAILED
       external_id TEXT, -- Docker container name or ECS Task ARN
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

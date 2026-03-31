@@ -40,12 +40,15 @@ app.get("/", (req, res) => {
 app.get("/videos", async (req, res) => {
   try {
     const result = await postgresService.query("SELECT * FROM videos ORDER BY created_at DESC");
-    const videos = result.rows.map((v) => ({
-      ...v,
-      video_url: getPublicUrl(v.url),
-      m3u8_url: getPublicUrl(v.m3u8_url),
-      subtitles_url: getPublicUrl(v.subtitles_url)
-    }));
+    const videos = result.rows.map((v) => {
+      const isCompleted = v.status === 'COMPLETED';
+      return {
+        ...v,
+        video_url: getPublicUrl(v.url),
+        m3u8_url: isCompleted ? getPublicUrl(`${v.id}/transcoded/master.m3u8`) : null,
+        subtitles_url: isCompleted ? getPublicUrl(`${v.id}/subtitles.vtt`) : null
+      };
+    });
     res.json(videos);
   } catch (error) {
     logger.error("Error fetching videos:", error);
@@ -89,6 +92,7 @@ app.get("/videos/:id", async (req, res) => {
     }
 
     const v = result.rows[0];
+    const isCompleted = v.status === 'COMPLETED';
     
     // Construct relevant data for the HLS player
     res.json({
@@ -96,10 +100,10 @@ app.get("/videos/:id", async (req, res) => {
       title: v.title,
       status: v.status.toLowerCase(),
       video_url: getPublicUrl(v.url),
-      m3u8_url: getPublicUrl(v.m3u8_url),
-      thumbnail_url: getPublicUrl(`${v.id}/thumbnail.jpg`),
-      subtitles_url: getPublicUrl(v.subtitles_url),
-      previews_url: getPublicUrl(`${v.id}/previews/preview`), // preview1, preview2, etc.
+      m3u8_url: isCompleted ? getPublicUrl(`${v.id}/transcoded/master.m3u8`) : null,
+      thumbnail_url: isCompleted ? getPublicUrl(`${v.id}/thumbnail.jpg`) : null,
+      subtitles_url: isCompleted ? getPublicUrl(`${v.id}/subtitles.vtt`) : null,
+      previews_url: isCompleted ? getPublicUrl(`${v.id}/previews/preview`) : null, // preview1, preview2, etc.
     });
   } catch (error) {
     logger.error("Error fetching video detail:", error);
