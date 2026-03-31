@@ -43,7 +43,7 @@ async function resetECS() {
   try {
     // 1. Teardown ECS Cluster
     try {
-      await ecsClient.send(new DeleteClusterCommand({ cluster: "video-transcode-cluster" }));
+      await ecsClient.send(new DeleteClusterCommand({ cluster: "video-transcoding-cluster" }));
       logger.info("✅ ECS Cluster deleted.");
     } catch (e) {
       // Silently handle if doesn't exist
@@ -52,7 +52,7 @@ async function resetECS() {
     // 2. Deregister Task Definitions
     try {
       // List all existing task definitions for the specific family
-      const taskDefsRes = await ecsClient.send(new ListTaskDefinitionsCommand({ familyPrefix: "video-transcode-task" }));
+      const taskDefsRes = await ecsClient.send(new ListTaskDefinitionsCommand({ familyPrefix: "video-transcoding-task" }));
       if (taskDefsRes.taskDefinitionArns) {
         for (const arn of taskDefsRes.taskDefinitionArns) {
           // Deregister each definition found
@@ -70,7 +70,7 @@ async function resetECS() {
     } catch (e) {}
 
     // 4. Cleanup IAM Roles
-    const roles = ["ReactAppDeployTaskExecutionRole", "ReactAppDeployTaskRole"];
+    const roles = ["VideoTranscodingTaskExecutionRole", "VideoTranscodingTaskRole"];
     for (const roleName of roles) {
       try {
         // First, list and detach all policies attached to the role

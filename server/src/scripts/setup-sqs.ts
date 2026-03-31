@@ -33,7 +33,7 @@ const sqsClient = new SQSClient({
  * Main Setup function for SQS.
  */
 async function setupSQS() {
-  const queueName = "react-app-deploy-queue";
+  const queueName = "video-transcoding-queue";
 
   logger.info(`🚀 Starting SQS setup for queue: ${queueName}...`);
 

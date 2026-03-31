@@ -135,16 +135,16 @@ async function setupECS() {
     });
 
     // Create or Verify Task Execution Role (responsible for pulling images and logging)
-    const executionRoleArn = await getOrCreateRole("ReactAppDeployTaskExecutionRole", ecsAssumeRolePolicy);
+    const executionRoleArn = await getOrCreateRole("VideoTranscodingTaskExecutionRole", ecsAssumeRolePolicy);
     await iamClient.send(new AttachRolePolicyCommand({
-      RoleName: "ReactAppDeployTaskExecutionRole",
+      RoleName: "VideoTranscodingTaskExecutionRole",
       PolicyArn: "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
     }));
 
     // Create or Verify Task Role (the role the actual running container assumes)
-    const taskRoleArn = await getOrCreateRole("ReactAppDeployTaskRole", ecsAssumeRolePolicy);
+    const taskRoleArn = await getOrCreateRole("VideoTranscodingTaskRole", ecsAssumeRolePolicy);
     await iamClient.send(new AttachRolePolicyCommand({
-      RoleName: "ReactAppDeployTaskRole",
+      RoleName: "VideoTranscodingTaskRole",
       PolicyArn: "arn:aws:iam::aws:policy/AdministratorAccess"
     }));
     logger.info("✅ IAM Roles configured.");
@@ -178,8 +178,8 @@ async function setupECS() {
     await autoPushDockerImage(repositoryUri);
 
     // 3. ECS Cluster Setup
-    logger.info(`🔧 Creating ECS Cluster: react-app-deploy-cluster...`);
-    const clusterRes = await ecsClient.send(new CreateClusterCommand({ clusterName: "react-app-deploy-cluster" }));
+    logger.info(`🔧 Creating ECS Cluster: video-transcoding-cluster...`);
+    const clusterRes = await ecsClient.send(new CreateClusterCommand({ clusterName: "video-transcoding-cluster" }));
     const cluster = clusterRes.cluster;
     if (!cluster || !cluster.clusterArn) {
       throw new Error("❌ ECS Cluster created but Arn is missing.");
@@ -204,9 +204,9 @@ async function setupECS() {
     logger.info(`✅ Log Group retention set to 7 days.`);
 
     // 5. Task Definition Registration for Transcoding
-    logger.info(`🔧 Registering ECS Task Definition: video-transcode-task...`);
+    logger.info(`🔧 Registering ECS Task Definition: video-transcoding-task...`);
     const taskDefRes = await ecsClient.send(new RegisterTaskDefinitionCommand({
-        family: "video-transcode-task",
+        family: "video-transcoding-task",
         cpu: "256",
         memory: "512",
         networkMode: "awsvpc",

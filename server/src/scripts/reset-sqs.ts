@@ -33,7 +33,7 @@ const sqsClient = new SQSClient({
  * Main Reset function for SQS.
  */
 async function resetSQS() {
-  const queueName = "react-app-deploy-queue";
+  const queueName = "video-transcoding-queue";
   logger.info(`🔥 Resetting SQS queue: ${queueName}...`);
 
   try {
