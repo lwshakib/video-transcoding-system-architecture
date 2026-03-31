@@ -80,6 +80,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
   const [menuLevel, setMenuLevel] = useState<'main' | 'quality' | 'speed'>('main');
   const [hlsLevels, setHlsLevels] = useState<any[]>([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
+  const [actualQuality, setActualQuality] = useState<number>(-1);
   const [previewPosition, setPreviewPosition] = useState(0);
   const [progressPosition, setProgressPosition] = useState(0);
 
@@ -127,6 +128,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
       });
 
       hls.on((window as any).Hls.Events.LEVEL_SWITCHED, (_: any, data: any) => {
+        setActualQuality(data.level);
         if (hls.autoLevelEnabled) {
           setCurrentQuality(-1);
         } else {
@@ -382,30 +384,36 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
                   {menuLevel === 'main' && (
                     <div className="flex flex-col gap-0.5">
                       <Item
-                        className="cursor-pointer hover:bg-white/5 text-white/70 hover:text-white transition-all border-none py-2"
+                        className={cn(
+                          "cursor-pointer transition-all border-none py-2",
+                          "text-white/70 hover:text-white"
+                        )}
                         onClick={() => setMenuLevel('quality')}
                       >
                         <ItemContent>
-                          <ItemTitle className="text-xs font-bold uppercase tracking-wider">Quality</ItemTitle>
+                          <ItemTitle className="text-xs">Quality</ItemTitle>
                         </ItemContent>
                         <ItemActions>
                           <span className="text-[10px] opacity-40 font-mono">
                             {currentQuality === -1
-                              ? 'Auto'
+                              ? (actualQuality !== -1 ? `Auto (${hlsLevels[actualQuality]?.height}p)` : 'Auto')
                               : `${hlsLevels[currentQuality]?.height}p`}
                           </span>
                           <ChevronRight size={14} className="opacity-30 ml-1" />
                         </ItemActions>
                       </Item>
                       <Item
-                        className="cursor-pointer hover:bg-white/5 text-white/70 hover:text-white transition-all border-none py-2"
+                        className={cn(
+                          "cursor-pointer transition-all border-none py-2",
+                          "text-white/70 hover:text-white"
+                        )}
                         onClick={() => setMenuLevel('speed')}
                       >
                         <ItemContent>
-                          <ItemTitle className="text-xs font-bold uppercase tracking-wider">Speed</ItemTitle>
+                          <ItemTitle className="text-xs">Playback Speed</ItemTitle>
                         </ItemContent>
                         <ItemActions>
-                          <span className="text-[10px] opacity-40 font-mono">{playbackRate}x</span>
+                          <span className="text-[10px] opacity-40 font-mono">{playbackRate === 1 ? 'Normal' : `${playbackRate}x`}</span>
                           <ChevronRight size={14} className="opacity-30 ml-1" />
                         </ItemActions>
                       </Item>
@@ -415,17 +423,17 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
                   {menuLevel === 'quality' && (
                     <div className="flex flex-col">
                       <div
-                        className="flex items-center gap-2 px-2 py-2 mb-2 cursor-pointer hover:bg-white/5 transition-colors rounded-lg group"
+                        className="flex items-center gap-2 px-2 py-2 mb-2 cursor-pointer transition-colors rounded-lg group"
                         onClick={() => setMenuLevel('main')}
                       >
                         <ChevronLeft size={14} className="text-zinc-500 group-hover:text-white" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">Back</span>
+                        <span className="text-[10px] font-bold text-white/50 group-hover:text-white">Back</span>
                       </div>
                       <div className="flex flex-col gap-0.5 overflow-y-auto max-h-48">
                         <Item
                           className={cn(
                             "cursor-pointer transition-all border-none py-2",
-                            currentQuality === -1 ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white"
+                            currentQuality === -1 ? "bg-white/10 text-white" : "text-white/40 hover:text-white"
                           )}
                           onClick={() => {
                             if (hlsRef.current) {
@@ -437,7 +445,9 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
                           }}
                         >
                           <ItemContent>
-                            <ItemTitle className="text-xs">Auto</ItemTitle>
+                            <ItemTitle className="text-xs">
+                              {actualQuality !== -1 ? `Auto (${hlsLevels[actualQuality]?.height}p)` : 'Auto'}
+                            </ItemTitle>
                           </ItemContent>
                           <ItemActions>
                             {currentQuality === -1 && <div className="active-dot" />}
@@ -448,7 +458,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
                             key={index}
                             className={cn(
                               "cursor-pointer transition-all border-none py-2",
-                              currentQuality === index ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white"
+                              currentQuality === index ? "bg-white/10 text-white" : "text-white/40 hover:text-white"
                             )}
                             onClick={() => {
                               if (hlsRef.current) {
@@ -474,11 +484,11 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
                   {menuLevel === 'speed' && (
                     <div className="flex flex-col">
                       <div
-                        className="flex items-center gap-2 px-2 py-2 mb-2 cursor-pointer hover:bg-white/5 transition-colors rounded-lg group"
+                        className="flex items-center gap-2 px-2 py-2 mb-2 cursor-pointer transition-colors rounded-lg group"
                         onClick={() => setMenuLevel('main')}
                       >
                         <ChevronLeft size={14} className="text-zinc-500 group-hover:text-white" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">Back</span>
+                        <span className="text-[10px] font-bold text-white/50 group-hover:text-white">Back</span>
                       </div>
                       <div className="flex flex-col gap-0.5">
                         {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
@@ -486,7 +496,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
                             key={rate}
                             className={cn(
                               "cursor-pointer transition-all border-none py-2",
-                              playbackRate === rate ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white"
+                              playbackRate === rate ? "bg-white/10 text-white" : "text-white/40 hover:text-white"
                             )}
                             onClick={() => {
                               if (videoRef.current) {
@@ -498,7 +508,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
                             }}
                           >
                             <ItemContent>
-                              <ItemTitle className="text-xs">{rate}x</ItemTitle>
+                              <ItemTitle className="text-xs">{rate === 1 ? 'Normal' : `${rate}x`}</ItemTitle>
                             </ItemContent>
                             <ItemActions>
                               {playbackRate === rate && <div className="active-dot" />}
