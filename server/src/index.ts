@@ -4,8 +4,10 @@ import { v4 as uuidv4 } from "uuid";
 import { postgresService } from "./services/postgres.services";
 import { s3Service } from "./services/s3.services";
 import { sqsService } from "./services/sqs.services";
+import { dockerService } from "./services/docker.services";
+import { ecsService } from "./services/ecs.services";
 import logger from "./logger/winston.logger";
-import { PORT, S3_BUCKET_NAME, AWS_REGION } from "./envs";
+import { PORT, S3_BUCKET_NAME, AWS_REGION, NODE_ENV } from "./envs";
 
 const app = express();
 const port = PORT;
@@ -40,7 +42,7 @@ app.get("/videos", async (req, res) => {
     const result = await postgresService.query("SELECT * FROM videos ORDER BY created_at DESC");
     const videos = result.rows.map((v) => ({
       ...v,
-      url: getPublicUrl(v.url),
+      video_url: getPublicUrl(v.url),
       m3u8_url: getPublicUrl(v.m3u8_url),
       subtitles_url: getPublicUrl(v.subtitles_url)
     }));
@@ -93,10 +95,11 @@ app.get("/videos/:id", async (req, res) => {
       id: v.id,
       title: v.title,
       status: v.status.toLowerCase(),
-      masterPlaylist: getPublicUrl(v.m3u8_url),
-      thumbnail: getPublicUrl(`${v.id}/thumbnail.jpg`),
-      subtitles: getPublicUrl(v.subtitles_url),
-      previewPrefix: getPublicUrl(`${v.id}/previews/preview`), // preview1, preview2, etc.
+      video_url: getPublicUrl(v.url),
+      m3u8_url: getPublicUrl(v.m3u8_url),
+      thumbnail_url: getPublicUrl(`${v.id}/thumbnail.jpg`),
+      subtitles_url: getPublicUrl(v.subtitles_url),
+      previews_url: getPublicUrl(`${v.id}/previews/preview`), // preview1, preview2, etc.
     });
   } catch (error) {
     logger.error("Error fetching video detail:", error);
@@ -167,10 +170,24 @@ app.delete("/videos/:id", async (req, res) => {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    // 2. Delete all files in S3 under the video's directory: '{id}/'
+    const v = checkResult.rows[0];
+    const externalId = v.external_id;
+
+    // 2. Stop any active transcoding task (Docker or ECS)
+    if (externalId) {
+      if (NODE_ENV === "development" || externalId.startsWith("transcoder-")) {
+        // Stop local Docker container
+        await dockerService.stopTask(id);
+      } else {
+        // Stop AWS ECS task
+        await ecsService.stopTask(externalId);
+      }
+    }
+
+    // 3. Delete all files in S3 under the video's directory: '{id}/'
     await s3Service.deleteFolder(`${id}/`);
 
-    // 3. Remove the record from the database
+    // 4. Remove the record from the database
     await postgresService.query("DELETE FROM videos WHERE id = $1", [id]);
 
     logger.info(`🔥 Successfully purged video and resources: ${id}`);

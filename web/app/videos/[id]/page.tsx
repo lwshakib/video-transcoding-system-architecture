@@ -34,10 +34,11 @@ interface Video {
   id: string;
   title: string;
   status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed';
-  masterPlaylist: string;
-  thumbnail?: string;
-  subtitles?: string;
-  previewPrefix?: string;
+  video_url: string;
+  m3u8_url: string;
+  thumbnail_url?: string;
+  subtitles_url?: string;
+  previews_url?: string;
 }
 
 const leadingZeroFormatter = new Intl.NumberFormat(undefined, {
@@ -114,7 +115,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
   }, [video?.id, video?.status]);
 
   const initHls = () => {
-    if (!video || !videoRef.current || video.status !== 'completed' || !video.masterPlaylist) return;
+    if (!video || !videoRef.current || video.status !== 'completed' || !video.m3u8_url) return;
 
     if ((window as any).Hls && (window as any).Hls.isSupported()) {
       if (hlsRef.current) hlsRef.current.destroy();
@@ -133,10 +134,10 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
         }
       });
 
-      hls.loadSource(video.masterPlaylist);
+      hls.loadSource(video.m3u8_url);
       hls.attachMedia(videoRef.current);
     } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-      videoRef.current.src = video.masterPlaylist;
+      videoRef.current.src = video.m3u8_url;
     }
   };
 
@@ -272,22 +273,8 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-start py-12 px-6">
-        <div className="w-full max-w-[1000px] mb-8">
-          <div className="h-4 w-32 rounded bg-zinc-900 animate-shimmer" />
-        </div>
-        
-        {/* Skeleton Player */}
-        <div className="w-full max-w-[1000px] aspect-video rounded-xl bg-zinc-900 animate-shimmer mb-8 border border-zinc-800/50" />
-        
-        {/* Skeleton Title/Meta */}
-        <div className="w-full max-w-[1000px] space-y-4">
-          <div className="h-8 w-1/2 rounded bg-zinc-900 animate-shimmer" />
-          <div className="flex gap-4">
-            <div className="h-6 w-24 rounded-full bg-zinc-900 animate-shimmer" />
-            <div className="h-6 w-32 rounded bg-zinc-900 animate-shimmer" />
-          </div>
-        </div>
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-start py-20 px-6">
+        <div className="w-full max-w-[1000px] aspect-video rounded-3xl bg-zinc-900/50 animate-shimmer border border-white/5" />
       </div>
     );
   }
@@ -311,7 +298,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
   );
 
   const previewImgNumber = Math.max(1, Math.floor((previewPosition * duration) / 10));
-  const previewImgSrc = `${video.previewPrefix}${previewImgNumber}.jpg`;
+  const previewImgSrc = `${video.previews_url}${previewImgNumber}.jpg`;
 
   return (
     <div className="min-h-screen bg-zinc-950 font-sans flex flex-col items-center justify-start py-12 px-6 text-white overflow-x-hidden">
@@ -331,7 +318,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
 
       {/* PIXEL EXACT WRAPPER */}
       <div className={containerClasses} data-volume-level={volumeLevel} ref={containerRef}>
-        <img className="thumbnail-img" src={video.thumbnail} alt="thumbnail" />
+        <img className="thumbnail-img" src={video.thumbnail_url} alt="thumbnail" />
 
         <div className="video-controls-container">
           <div
@@ -533,8 +520,8 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
             </button>
           </div>
         </div>
-        <video ref={videoRef} onClick={togglePlay} crossOrigin="anonymous" poster={video.thumbnail}>
-          {video.subtitles && <track kind="captions" srcLang="en" src={video.subtitles} />}
+        <video ref={videoRef} onClick={togglePlay} crossOrigin="anonymous" poster={video.thumbnail_url}>
+          {video.subtitles_url && <track kind="captions" srcLang="en" src={video.subtitles_url} />}
         </video>
       </div>
 

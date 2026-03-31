@@ -107,10 +107,15 @@ class SQSService {
                   // In development, we run the transcoding-container locally using Docker
                   logger.info(`🏠 Development Mode: Starting local Docker transcoding build...`);
                   await dockerService.runTask(taskParams);
+                  await postgresService.query("UPDATE videos SET external_id = $1 WHERE id = $2", [`transcoder-${payload.videoId}`, payload.videoId]);
                 } else {
                   // In production, we trigger an AWS ECS Fargate task
                   logger.info(`🌩️ Deployment Mode: Triggering AWS ECS task...`);
-                  await ecsService.runTask(taskParams);
+                  const ecsResponse = await ecsService.runTask(taskParams);
+                  const taskArn = ecsResponse.tasks?.[0]?.taskArn;
+                  if (taskArn) {
+                    await postgresService.query("UPDATE videos SET external_id = $1 WHERE id = $2", [taskArn, payload.videoId]);
+                  }
                 }
 
                 // Delete the message from SQS only IF the trigger was successful

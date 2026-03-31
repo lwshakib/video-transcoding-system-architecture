@@ -36,6 +36,7 @@ async function setupPostgres() {
       m3u8_url TEXT, -- Optional, populated after transcoding
       subtitles_url TEXT, -- Optional, populated after AI transcription
       status TEXT NOT NULL DEFAULT 'UPLOADING', -- UPLOADING, QUEUED, PROCESSING, COMPLETED, FAILED
+      external_id TEXT, -- Docker container name or ECS Task ARN
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `;

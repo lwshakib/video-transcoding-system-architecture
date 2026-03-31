@@ -4,7 +4,7 @@
  * It uses AWS Fargate to run the transcoding-container image for every new deployment.
  */
 
-import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
+import { ECSClient, RunTaskCommand, StopTaskCommand } from "@aws-sdk/client-ecs";
 import logger from "../logger/winston.logger";
 import { 
   AWS_ACCESS_KEY_ID, 
@@ -90,6 +90,28 @@ class ECSService {
     } catch (error) {
       logger.error("❌ ECS Task trigger error:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Stops a running AWS ECS Fargate task.
+   * @param taskArn - The Amazon Resource Name (ARN) identifying the task to stop
+   */
+  async stopTask(taskArn: string) {
+    logger.info(`🛑 Stopping AWS ECS task: ${taskArn}...`);
+    const command = new StopTaskCommand({
+      cluster: ECS_CLUSTER_ARN,
+      task: taskArn,
+      reason: "Video deleted by user",
+    });
+
+    try {
+      await this.client.send(command);
+      logger.info(`✅ ECS Task stop command sent: ${taskArn}`);
+      return true;
+    } catch (error) {
+      logger.error(`❌ Failed to stop ECS Task ${taskArn}:`, error);
+      return false;
     }
   }
 }

@@ -31,7 +31,7 @@ class DockerService {
     };
 
     // Prepare the 'docker run' command arguments
-    const args = ["run", "--rm"];
+    const args = ["run", "--rm", "--name", `transcoder-${videoId}`];
 
     // Inject system-wide environment variables into the container
     Object.entries(envVars).forEach(([key, value]) => {
@@ -66,6 +66,26 @@ class DockerService {
         } else {
           logger.error(`❌ Local Docker build failed with exit code ${code}`);
           reject(new Error(`Docker build failed with code ${code}`)); // Build failed
+        }
+      });
+    });
+  }
+
+  /**
+   * Stops a running Docker transcoding container.
+   * @param videoId - Unique ID of the video being transcoded
+   */
+  async stopTask(videoId: string) {
+    logger.info(`🛑 Stopping local Docker transcoding for video: ${videoId}...`);
+    return new Promise((resolve) => {
+      const p = spawn("docker", ["stop", `transcoder-${videoId}`]);
+      p.on("close", (code) => {
+        if (code === 0) {
+          logger.info(`✅ Docker container transcoder-${videoId} stopped.`);
+          resolve(true);
+        } else {
+          logger.warn(`⚠️ Failed to stop Docker container or it wasn't running (code ${code}).`);
+          resolve(false);
         }
       });
     });

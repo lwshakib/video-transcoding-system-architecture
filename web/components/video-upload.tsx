@@ -92,7 +92,13 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
       const { data: finalVideo } = await axios.post(`${API_URL}/videos/${videoId}/start`, {}, { signal: controller.signal });
 
       // 6. Success cleanup (replaces temp item with real video data)
-      onComplete(tempId, finalVideo);
+      onComplete(tempId, {
+        id: videoId,
+        title: file.name.split(".")[0],
+        size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+        status: "QUEUED",
+        createdAt: new Date().toISOString()
+      });
       setIsUploading(false);
       
     } catch (err: unknown) {
