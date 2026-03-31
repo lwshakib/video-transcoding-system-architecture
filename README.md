@@ -5,10 +5,10 @@ Express, and AWS Fargate. It handles the entire lifecycle of a video—from
 direct S3 uploads and adaptive bitrate transcoding to AI-driven subtitle 
 generation and public playback.
 
-<div align="center" style="display: flex; justify-content: center; gap: 10px;">
-  <img src="./web/public/app_demo/video_upload_demo.png" alt="Video Upload Demo" width="450" />
-  <img src="./web/public/app_demo/video_player_demo.png" alt="Video Player Demo" width="450" />
-</div>
+![Video Upload Demo](./web/public/app_demo/video_upload_demo.png)
+
+![Video Player Demo](./web/public/app_demo/video_player_demo.png)
+
 
 
 
