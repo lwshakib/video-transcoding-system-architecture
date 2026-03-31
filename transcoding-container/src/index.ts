@@ -135,9 +135,15 @@ async function run() {
 
     const applicableQualities = TARGET_QUALITIES.filter((q) => q.height <= inputHeight);
 
+    // 2.5 Upload Source to its final destination
+    const sourceExtension = path.extname(originalFileName);
+    const sourceS3Key = `${VIDEO_ID}/video${sourceExtension}`;
+    logger.info(`Uploading source video to permanent location: ${sourceS3Key}`);
+    await s3Service.uploadObject(sourceS3Key, inputPath, 'video/mp4'); // Assume mp4 or keeping original type
+
     // 3. Transcode HLS
     let masterPlaylist = '#EXTM3U\n#EXT-X-VERSION:3\n';
-    const transcodedBasePrefix = `videos/${VIDEO_ID}/transcoded`;
+    const transcodedBasePrefix = `${VIDEO_ID}/transcoded`;
     
     for (const q of applicableQualities) {
       const localQualityDir = await transcodeHLS(q);
@@ -163,7 +169,7 @@ async function run() {
       '-vframes', '1',
       localThumbPath,
     ]);
-    const thumbS3Key = `${transcodedBasePrefix}/thumbnail.jpg`;
+    const thumbS3Key = `${VIDEO_ID}/thumbnail.jpg`;
     await s3Service.uploadObject(thumbS3Key, localThumbPath, 'image/jpeg');
 
     // 5. Generate Preview Images (every 10 seconds)
@@ -176,12 +182,12 @@ async function run() {
       '-vf', 'fps=1/10,scale=160:-1',
       path.join(localPreviewDir, 'preview%d.jpg'),
     ]);
-    await uploadDirectory(localPreviewDir, `${transcodedBasePrefix}/previews`);
+    await uploadDirectory(localPreviewDir, `${VIDEO_ID}/previews`);
 
     // 6. Generate Real AI Subtitles (Speech-to-Text)
     const localAudioPath = path.join('/tmp', VIDEO_ID, 'audio.wav');
     const localSubtitlePath = path.join('/tmp', VIDEO_ID, 'subtitles.vtt');
-    const subtitleS3Key = `videos/${VIDEO_ID}/subtitles.vtt`;
+    const subtitleS3Key = `${VIDEO_ID}/subtitles.vtt`;
 
     try {
       logger.info('Extracting audio for transcription...');
@@ -210,7 +216,7 @@ async function run() {
     }
 
     // 7. Success Cleanup & DB Update
-    await postgresService.setCompleted(masterS3Key, subtitleS3Key);
+    await postgresService.setCompleted(masterS3Key, sourceS3Key, subtitleS3Key);
     logger.info(`🎉 Pipeline Finished Successfully for ${VIDEO_ID}.`);
     
     // Explicitly end postgres pool to exit process smoothly

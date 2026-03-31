@@ -39,16 +39,16 @@ class PostgresService {
   /**
    * Updates the video to Completed, saving URLs
    */
-  async setCompleted(m3u8Url: string, subtitlesUrl?: string) {
+  async setCompleted(m3u8Url: string, videoUrl: string, subtitlesUrl?: string) {
     if (subtitlesUrl) {
       await this.query(
-        "UPDATE videos SET status = 'COMPLETED', m3u8_url = $1, subtitles_url = $2 WHERE id = $3", 
-        [m3u8Url, subtitlesUrl, VIDEO_ID]
+        "UPDATE videos SET status = 'COMPLETED', m3u8_url = $1, url = $2, subtitles_url = $3 WHERE id = $4", 
+        [m3u8Url, videoUrl, subtitlesUrl, VIDEO_ID]
       );
     } else {
       await this.query(
-        "UPDATE videos SET status = 'COMPLETED', m3u8_url = $1 WHERE id = $2", 
-        [m3u8Url, VIDEO_ID]
+        "UPDATE videos SET status = 'COMPLETED', m3u8_url = $1, url = $2 WHERE id = $3", 
+        [m3u8Url, videoUrl, VIDEO_ID]
       );
     }
     logger.info(`✅ Status updated to COMPLETED for video: ${VIDEO_ID}`);

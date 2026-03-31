@@ -30,8 +30,6 @@ export default function Home() {
 
   useEffect(() => {
     fetchVideos();
-    const interval = setInterval(fetchVideos, 5000);
-    return () => clearInterval(interval);
   }, [fetchVideos]);
 
   const handleVideoAdded = (newVideo: VideoItem, controller: AbortController) => {

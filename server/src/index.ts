@@ -94,9 +94,9 @@ app.get("/videos/:id", async (req, res) => {
       title: v.title,
       status: v.status.toLowerCase(),
       masterPlaylist: getPublicUrl(v.m3u8_url),
-      thumbnail: getPublicUrl(`videos/${v.id}/transcoded/thumbnail.jpg`),
+      thumbnail: getPublicUrl(`${v.id}/thumbnail.jpg`),
       subtitles: getPublicUrl(v.subtitles_url),
-      previewPrefix: getPublicUrl(`videos/${v.id}/transcoded/previews/preview`), // preview1, preview2, etc.
+      previewPrefix: getPublicUrl(`${v.id}/previews/preview`), // preview1, preview2, etc.
     });
   } catch (error) {
     logger.error("Error fetching video detail:", error);
@@ -167,8 +167,8 @@ app.delete("/videos/:id", async (req, res) => {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    // 2. Delete all files in S3 under the video's directory: 'videos/{id}/'
-    await s3Service.deleteFolder(`videos/${id}/`);
+    // 2. Delete all files in S3 under the video's directory: '{id}/'
+    await s3Service.deleteFolder(`${id}/`);
 
     // 3. Remove the record from the database
     await postgresService.query("DELETE FROM videos WHERE id = $1", [id]);
