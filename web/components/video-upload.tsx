@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * Interactive Video Upload Component.
+ * This component handles the multi-stage upload process:
+ * 1. File validation and drag-and-drop interaction.
+ * 2. Fetching a secure Pre-Signed URL from the backend.
+ * 3. Direct-to-S3 binary upload with real-time progress tracking.
+ * 4. Finalizing the database record and triggering the transcoding pipeline.
+ */
+
 import React, { useState, useCallback } from "react";
 import { Upload, FileVideo, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,16 +18,25 @@ import axios, { isAxiosError } from "axios";
 import { VideoItem } from "./video-list";
 
 interface VideoUploadProps {
+  // Callback to inform the parent that a new (temporary) video item has been added.
   onVideoAdded: (video: VideoItem, controller: AbortController) => void;
+  // Callback to update the parent on the current upload percentage.
   onProgress: (videoId: string, progress: number) => void;
+  // Callback to signal that the upload and DB record creation are successful.
   onComplete: (videoId: string, updatedVideo: VideoItem) => void;
 }
 
 export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploadProps) {
+  // State: Tracks if a file is currently hovering over the drop zone.
   const [dragActive, setDragActive] = useState(false);
+  // State: Stores human-readable error messages for UI feedback.
   const [error, setError] = useState<string | null>(null);
+  // State: Tracks if a network request is currently in flight.
   const [isUploading, setIsUploading] = useState(false);
 
+  /**
+   * Handler: Manages the visual 'active' state of the drop zone during drag events.
+   */
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -29,6 +47,9 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
     }
   }, []);
 
+  /**
+   * Utility: Ensures the selected file is actually a video format.
+   */
   const validateFile = (file: File) => {
     if (!file.type.startsWith("video/")) {
       setError("Please upload a valid video file (MP4, MKV, etc.)");
@@ -38,16 +59,24 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
     return true;
   };
 
+  /**
+   * Core Orchestrator: Executes the 6-step upload and registration sequence.
+   */
   const startUpload = async (file: File) => {
     setIsUploading(true);
     setError(null);
+    
+    // Create an AbortController to allow users to cancel the upload at any point.
     const controller = new AbortController();
+    // Generate a temporary ID for UI tracking before we have a real DB UUID.
     const tempId = `temp-${Date.now()}`;
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL;
       
-      // 1. Get pre-signed URL and unique key WITHOUT creating record yet
+      // --- STEP 1: PRE-SIGNED URL ---
+      // Request a secure upload path from the backend. This avoids piping large binaries 
+      // through our Express server, saving bandwidth and memory.
       const { data: uploadInfo } = await axios.get(`${API_URL}/videos/upload-url`, {
         params: {
           fileName: file.name,
@@ -58,7 +87,8 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
 
       const { uploadUrl, key } = uploadInfo;
 
-      // 2. Optimistically add to the list as UPLOADING (using temporary ID)
+      // --- STEP 2: OPTIMISTIC UI ---
+      // Immediately show the video in the list with an 'UPLOADING' status.
       onVideoAdded({
         id: tempId,
         title: file.name.split(".")[0],
@@ -68,7 +98,9 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
         createdAt: new Date().toISOString()
       }, controller);
 
-      // 3. Upload directly to S3
+      // --- STEP 3: DIRECT S3 UPLOAD ---
+      // Execute a PUT request to the pre-signed URL. We use Axios's onUploadProgress 
+      // to drive the progress bar in the UI.
       await axios.put(uploadUrl, file, {
         headers: { "Content-Type": file.type },
         signal: controller.signal,
@@ -78,7 +110,8 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
         }
       });
 
-      // 4. AFTER upload is 100%, create the record in DB
+      // --- STEP 4: DB REGISTRATION ---
+      // Now that the file is safely in S3, we create the official record in PostgreSQL.
       const { data: recordData } = await axios.post(`${API_URL}/videos`, {
         title: file.name.split(".")[0],
         fileName: file.name,
@@ -88,10 +121,13 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
 
       const { videoId } = recordData;
 
-      // 5. Signal server to start transcoding
-      const { data: finalVideo } = await axios.post(`${API_URL}/videos/${videoId}/start`, {}, { signal: controller.signal });
+      // --- STEP 5: TRIGGER TRANSCODING ---
+      // Inform the backend that the file is ready for processing.
+      // This will trigger an SQS message and subsequent ECS/Docker transcoding.
+      await axios.post(`${API_URL}/videos/${videoId}/start`, {}, { signal: controller.signal });
 
-      // 6. Success cleanup (replaces temp item with real video data)
+      // --- STEP 6: SUCCESS CLEANUP ---
+      // Replace the temporary UI object with the real video record from the database.
       onComplete(tempId, {
         id: videoId,
         title: file.name.split(".")[0],
@@ -102,17 +138,21 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
       setIsUploading(false);
       
     } catch (err: unknown) {
+      // Handle manual cancellation logic separately from real network errors.
       if (axios.isCancel(err)) {
-        console.log("Upload aborted by user");
+        console.log("Upload aborted by user action.");
         return;
       }
       
-      console.error("Upload failed:", err);
-      setError("Upload failed. Please try again.");
+      console.error("Critical upload failure:", err);
+      setError("Upload failed. Please check your connection and try again.");
       setIsUploading(false);
     }
   };
 
+  /**
+   * Handler: Triggered when a file is dropped directly onto the component.
+   */
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -126,6 +166,9 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
     }
   }, []);
 
+  /**
+   * Handler: Triggered when a file is selected via the native OS file picker.
+   */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
     if (e.target.files && e.target.files[0]) {
@@ -138,12 +181,13 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
 
   return (
     <div className="w-full px-4">
+      {/* Visual Drop Zone: Changes color and border style based on drag state */}
       <div
         className={cn(
           "relative group rounded-xl border border-dashed transition-all duration-200 py-16 flex flex-col items-center justify-center gap-4",
           dragActive
-            ? "border-primary bg-primary/5"
-            : "border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900/50",
+            ? "border-primary bg-primary/5" // Active state (Emerald)
+            : "border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900/50", // Idle/Hover state
           "cursor-pointer"
         )}
         onDragEnter={handleDrag}
@@ -151,19 +195,22 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
         onDragOver={handleDrag}
         onDrop={handleDrop}
       >
+        {/* Animated Central Icon */}
         <div className="p-4 rounded-full bg-zinc-800 mb-2">
           <Upload className="w-6 h-6 text-zinc-500" />
         </div>
         
+        {/* Instruction Text */}
         <div className="text-center">
           <p className="text-sm font-medium text-zinc-300">
-            {dragActive ? "Drop to upload" : "Drag and drop video"}
+            {dragActive ? "Drop to start upload" : "Drag and drop your video file"}
           </p>
           <p className="text-xs text-zinc-500 mt-1">
-            or click to browse
+            or click anywhere to browse your computer
           </p>
         </div>
         
+        {/* Hidden Native File Input: Transparently covers the entire component area */}
         <input
           type="file"
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -171,6 +218,7 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
           accept="video/*"
         />
 
+        {/* Error Tooltip: Displayed below the drop zone on validation failure */}
         {error && (
           <div className="absolute -bottom-8 left-0 right-0 flex items-center justify-center gap-2 text-rose-500 text-xs transition-all">
             <AlertCircle className="w-3 h-3" />

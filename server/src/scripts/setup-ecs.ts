@@ -1,12 +1,15 @@
 /**
  * AWS ECS Infrastructure Setup Script.
- * This script automates a comprehensive AWS Fargate setup including:
- * 1. IAM Roles (Execution and Task Roles).
- * 2. ECR Repository for the build container.
- * 3. Automatic Docker image build and push to ECR.
- * 4. ECS Cluster and CloudWatch Log Group creation.
- * 5. ECS Task Definition registration.
- * 6. Default VPC/Networking discovery and .env updates.
+ * This comprehensive administrative utility automates the creation and configuration 
+ * of the AWS Fargate transcoding environment.
+ * 
+ * Orchestration Steps:
+ * 1. Provision IAM Execution and Task Roles for security isolation.
+ * 2. Create a private ECR (Elastic Container Registry) to store worker images.
+ * 3. Build the local 'transcoding-container' Docker image and push it to ECR.
+ * 4. Instantiate the ECS Cluster and CloudWatch Log Groups for telemetry.
+ * 5. Register the Task Definition (The worker's execution blueprint).
+ * 6. Automatically discover VPC networking (Subnets/Security Groups) and update local .env.
  */
 
 import { ECSClient, CreateClusterCommand, RegisterTaskDefinitionCommand } from "@aws-sdk/client-ecs";
@@ -20,53 +23,54 @@ import { execSync } from "child_process";
 import logger from "../logger/winston.logger";
 import { updateEnv } from "../utils/env-updater";
 
-// Configuration for AWS Client
+// Configuration for AWS Client communication.
 const region = AWS_REGION;
 const accessKeyId = AWS_ACCESS_KEY_ID;
 const secretAccessKey = AWS_SECRET_ACCESS_KEY;
 
-// Validation: Ensure required environment variables are set before proceeding
+// Validation: The script cannot interact with AWS without these core credentials.
 if (!region || !accessKeyId || !secretAccessKey) {
-  logger.error("❌ Missing AWS environment variables (AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY).");
+  logger.error("❌ Missing AWS credentials. Cannot proceed with infrastructure setup.");
   process.exit(1);
 }
 
-// Credentials object for all AWS service clients
+// Global credentials object for SDK client instantiation.
 const credentials = { accessKeyId, secretAccessKey };
 
-// Instantiate specialized AWS clients
+// Initialize specialized AWS clients for individual infrastructure components.
 const ecsClient = new ECSClient({ region, credentials });
 const ecrClient = new ECRClient({ region, credentials });
 const iamClient = new IAMClient({ region, credentials });
 const ec2Client = new EC2Client({ region, credentials });
 const cwLogsClient = new CloudWatchLogsClient({ region, credentials });
 
-// Static constant for the transcoding container name
+// Identifying constant for the worker container.
 const CONTAINER_NAME = "transcoding-container";
 
 /**
- * Utility function to find or create an IAM role with a given policy.
+ * Utility: Find or Create an IAM Role.
+ * Handles the common 'Idempotent' check to avoid errors if the role is already defined.
  */
 async function getOrCreateRole(roleName: string, assumeRolePolicyDocument: string) {
   try {
     const roleRes = await iamClient.send(new GetRoleCommand({ RoleName: roleName }));
-    logger.info(`ℹ️ IAM Role ${roleName} already exists.`);
+    logger.info(`ℹ️ IAM Role '${roleName}' already exists, reusing ARN.`);
     if (!roleRes.Role || !roleRes.Role.Arn) {
-      throw new Error(`❌ Role ${roleName} found but Arn is missing.`);
+      throw new Error(`❌ Found role '${roleName}' but its Amazon Resource Name is missing.`);
     }
     return roleRes.Role.Arn;
   } catch (error: any) {
     if (error.name === "NoSuchEntityException" || error.name === "NoSuchEntity") {
-      logger.info(`🔧 Creating IAM Role: ${roleName}...`);
+      logger.info(`🔧 Creating new IAM Role: ${roleName}...`);
       const createRes = await iamClient.send(new CreateRoleCommand({
         RoleName: roleName,
         AssumeRolePolicyDocument: assumeRolePolicyDocument,
       }));
       
-      // Wait for AWS IAM propagation delay
+      // Inject a short delay to allow for AWS IAM eventual consistency propagation.
       await new Promise(resolve => setTimeout(resolve, 5000));
       if (!createRes.Role || !createRes.Role.Arn) {
-        throw new Error("❌ Role created but Arn is missing.");
+        throw new Error("❌ IAM Role creation failed: ARN not returned.");
       }
       return createRes.Role.Arn;
     }
@@ -75,56 +79,58 @@ async function getOrCreateRole(roleName: string, assumeRolePolicyDocument: strin
 }
 
 /**
- * Automates the build and push of the local Docker image to AWS ECR.
+ * Automation: Local Build, Tag, and Push to AWS ECR.
+ * This function handles the entire container deployment pipeline.
  */
 async function autoPushDockerImage(repositoryUri: string) {
-    logger.info(`\n🐳 Authenticating Docker with AWS ECR...`);
+    logger.info(`\n🐳 Initiating Docker authentication with AWS ECR...`);
+    
+    // Step 1: Fetch a temporary authorization token from ECR.
     const authRes = await ecrClient.send(new GetAuthorizationTokenCommand({}));
     if (!authRes.authorizationData || authRes.authorizationData.length === 0) {
-        throw new Error("❌ No authorization data returned from ECR");
+        throw new Error("❌ ECR Authorization failed: No data returned.");
     }
     
-    // Extract authentication token
     const authData = authRes.authorizationData[0];
     if (!authData || !authData.authorizationToken || !authData.proxyEndpoint) {
-        throw new Error("❌ Malformed authorization data returned from ECR");
+        throw new Error("❌ ECR Authorization failed: Token or Endpoint missing.");
     }
     
-    // Decode token and execute docker login
+    // Step 2: Decode the Base64 token and run 'docker login'.
     const decodedToken = Buffer.from(authData.authorizationToken, "base64").toString("utf-8");
-    const parts = decodedToken.split(":");
-    if (parts.length < 2) {
-        throw new Error("❌ Decoded authorization token is malformed");
-    }
+    const parts = decodedToken.split(":"); // Format is 'AWS:PASSWORD'.
     const password = parts[1];
     const endpoint = authData.proxyEndpoint;
 
-    logger.info(`🔐 Logging into ECR: ${endpoint}...`);
+    logger.info(`🔐 Securely logging into ECR registry: ${endpoint}...`);
     execSync(`docker login --username AWS --password ${password} ${endpoint}`, { stdio: "inherit" });
 
-    // Build the Docker image locally from the transcoding-container directory
-    logger.info(`\n🔨 Building Docker image: transcoding-container:latest...`);
+    // Step 3: Build the Docker image locally from the project root.
+    logger.info(`\n🔨 Compiling local Docker image: ${CONTAINER_NAME}:latest...`);
+    // Find the build root (transcoding-container directory).
     const buildContext = path.join(process.cwd(), "..", "transcoding-container");
     execSync(`docker build -t transcoding-container:latest ${buildContext}`, { stdio: "inherit" });
 
-    // Tag and Push the image
-    logger.info(`🏷️ Tagging local image...`);
+    // Step 4: Tag the local image with the remote ECR URI.
+    logger.info(`🏷️ Tagging image for remote registry...`);
     execSync(`docker tag transcoding-container:latest ${repositoryUri}:latest`, { stdio: "inherit" });
 
-    logger.info(`🚀 Pushing image to ECR (This will take a few minutes)...`);
+    // Step 5: Push the image upstream to AWS.
+    logger.info(`🚀 Pushing container image to Cloud (Network intensive)...`);
     execSync(`docker push ${repositoryUri}:latest`, { stdio: "inherit" });
     
-    logger.info(`✅ Image automatically pushed to ECR!`);
+    logger.info(`✅ Image deployment successful!`);
 }
 
 /**
- * Comprehensive Setup function for ECS Fargate.
+ * Primary Infrastructure Orchestration Function.
  */
 async function setupECS() {
-  logger.info("🚀 Starting comprehensive AWS ECS Fargate setup...");
+  logger.info("🚀 Starting end-to-end AWS ECS Fargate environment provisioning...");
 
   try {
-    // 1. IAM Roles Setup: Execution and Task Roles
+    // --- 1. IAM SECURITY ARCHITECTURE ---
+    // Trust document allowing ECS tasks to assume these roles.
     const ecsAssumeRolePolicy = JSON.stringify({
       Version: "2012-10-17",
       Statement: [{
@@ -134,82 +140,69 @@ async function setupECS() {
       }]
     });
 
-    // Create or Verify Task Execution Role (responsible for pulling images and logging)
+    // EXECUTION ROLE: Permission to pull images from ECR and write logs to CloudWatch.
     const executionRoleArn = await getOrCreateRole("VideoTranscodingTaskExecutionRole", ecsAssumeRolePolicy);
     await iamClient.send(new AttachRolePolicyCommand({
       RoleName: "VideoTranscodingTaskExecutionRole",
       PolicyArn: "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
     }));
 
-    // Create or Verify Task Role (the role the actual running container assumes)
+    // TASK ROLE: Internal container permissions (Full admin for this demo to allow S3/DB access).
     const taskRoleArn = await getOrCreateRole("VideoTranscodingTaskRole", ecsAssumeRolePolicy);
     await iamClient.send(new AttachRolePolicyCommand({
       RoleName: "VideoTranscodingTaskRole",
       PolicyArn: "arn:aws:iam::aws:policy/AdministratorAccess"
     }));
-    logger.info("✅ IAM Roles configured.");
+    logger.info("✅ IAM Security Roles verified.");
 
-    // 2. ECR Repository Setup for Transcoding Container
+    // --- 2. ECR REGISTRY PROVISIONING ---
     let repositoryUri = "";
     try {
+      // Check if the repository already exists.
       const ecrRes = await ecrClient.send(new DescribeRepositoriesCommand({ repositoryNames: ["transcoding-container"] }));
-      const repos = ecrRes.repositories;
-      const firstRepo = repos?.[0];
-      if (!firstRepo || !firstRepo.repositoryUri) {
-        throw new Error("❌ ECR repository found but URI is missing.");
-      }
-      repositoryUri = firstRepo.repositoryUri;
-      logger.info(`ℹ️ ECR Repo transcoding-container exists.`);
+      repositoryUri = ecrRes.repositories?.[0]?.repositoryUri || "";
+      logger.info(`ℹ️ ECR Repository already active.`);
     } catch (error: any) {
       if (error.name === "RepositoryNotFoundException") {
-        logger.info(`🔧 Creating ECR Repository: transcoding-container...`);
+        // Create the repository if missing.
+        logger.info(`🔧 Provisioning new ECR Repository: transcoding-container...`);
         const createEcr = await ecrClient.send(new CreateRepositoryCommand({ repositoryName: "transcoding-container" }));
-        const repo = createEcr.repository;
-        if (!repo || !repo.repositoryUri) {
-          throw new Error("❌ ECR repository created but URI is missing.");
-        }
-        repositoryUri = repo.repositoryUri;
+        repositoryUri = createEcr.repository?.repositoryUri || "";
       } else throw error;
     }
     const containerImageUri = `${repositoryUri}:latest`;
-    logger.info(`✅ ECR URI: ${containerImageUri}`);
 
-    // Automatically build and push the container image
+    // --- 3. DOCKER IMAGE DEPLOYMENT ---
+    // Automate the local build and remote push cycle.
     await autoPushDockerImage(repositoryUri);
 
-    // 3. ECS Cluster Setup
+    // --- 4. ECS CLUSTER PROVISIONING ---
     logger.info(`🔧 Creating ECS Cluster: video-transcoding-cluster...`);
     const clusterRes = await ecsClient.send(new CreateClusterCommand({ clusterName: "video-transcoding-cluster" }));
-    const cluster = clusterRes.cluster;
-    if (!cluster || !cluster.clusterArn) {
-      throw new Error("❌ ECS Cluster created but Arn is missing.");
-    }
-    const clusterArn = cluster.clusterArn;
-    logger.info(`✅ ECS Cluster created / verified.`);
+    const clusterArn = clusterRes.cluster?.clusterArn || "";
+    logger.info(`✅ ECS Cluster ready.`);
 
-    // 4. CloudWatch Logging Setup
+    // --- 5. CLOUDWATCH LOGGING CONFIGURATION ---
     const logGroupName = `/ecs/${CONTAINER_NAME}`;
-    logger.info(`🔧 Ensuring CloudWatch Log Group: ${logGroupName}...`);
+    logger.info(`🔧 Syncing CloudWatch Log Group: ${logGroupName}...`);
     try {
         await cwLogsClient.send(new CreateLogGroupCommand({ logGroupName }));
-        logger.info(`✅ Log Group ${logGroupName} created.`);
     } catch (error: any) {
-        if (error.name === "ResourceAlreadyExistsException") {
-            logger.info(`ℹ️ Log Group ${logGroupName} already exists.`);
-        } else throw error;
+        if (error.name !== "ResourceAlreadyExistsException") throw error;
     }
 
-    // Configure Log Retention (7 days)
+    // Apply a 7-day TTL to logs to strictly control AWS costs.
     await cwLogsClient.send(new PutRetentionPolicyCommand({ logGroupName, retentionInDays: 7 }));
-    logger.info(`✅ Log Group retention set to 7 days.`);
+    logger.info(`✅ Logging retention and policies enforced.`);
 
-    // 5. Task Definition Registration for Transcoding
+    // --- 6. TASK DEFINITION REGISTRATION ---
+    // This 'blueprint' tells ECS exactly how to launch our transcoding containers.
     logger.info(`🔧 Registering ECS Task Definition: video-transcoding-task...`);
     const taskDefRes = await ecsClient.send(new RegisterTaskDefinitionCommand({
         family: "video-transcoding-task",
-        cpu: "256",
+        cpu: "256",    // Smallest Fargate tier for cost efficiency.
         memory: "512",
-        networkMode: "awsvpc",
+        networkMode: "awsvpc", // Required for Fargate.
         requiresCompatibilities: ["FARGATE"],
         executionRoleArn,
         taskRoleArn,
@@ -219,15 +212,16 @@ async function setupECS() {
                 image: containerImageUri,
                 essential: true,
                 environment: [
-                  { name: "AWS_REGION", value: AWS_REGION },
-                  { name: "AWS_ACCESS_KEY_ID", value: AWS_ACCESS_KEY_ID },
-                  { name: "AWS_SECRET_ACCESS_KEY", value: AWS_SECRET_ACCESS_KEY },
-                  { name: "S3_BUCKET_NAME", value: S3_BUCKET_NAME },
+                    // Provide baseline AWS context to the container.
+                    { name: "AWS_REGION", value: AWS_REGION },
+                    { name: "AWS_ACCESS_KEY_ID", value: AWS_ACCESS_KEY_ID },
+                    { name: "AWS_SECRET_ACCESS_KEY", value: AWS_SECRET_ACCESS_KEY },
+                    { name: "S3_BUCKET_NAME", value: S3_BUCKET_NAME },
                 ],
                 logConfiguration: {
                     logDriver: "awslogs",
                     options: {
-                        "awslogs-group": `/ecs/${CONTAINER_NAME}`,
+                        "awslogs-group": logGroupName,
                         "awslogs-region": region,
                         "awslogs-stream-prefix": "ecs"
                     }
@@ -235,46 +229,44 @@ async function setupECS() {
             }
         ]
     }));
-    const taskDef = taskDefRes.taskDefinition;
-    if (!taskDef || !taskDef.taskDefinitionArn) {
-      throw new Error("❌ ECS Task Definition registered but Arn is missing.");
-    }
-    const taskDefArn = taskDef.taskDefinitionArn;
-    logger.info(`✅ ECS Task Definition registered.`);
+    const taskDefArn = taskDefRes.taskDefinition?.taskDefinitionArn || "";
+    logger.info(`✅ Task blueprint (Definition) registered.`);
 
-    // 6. Network Discovery (Default VPC, Subnets, and Security Groups)
-    logger.info(`🔍 Auto-discovering Default VPC networking...`);
+    // --- 7. AUTOMATED NETWORK DISCOVERY ---
+    logger.info(`🔍 Discovering Default VPC networking requirements...`);
+    
+    // Find the Default VPC in the region.
     const vpcs = await ec2Client.send(new DescribeVpcsCommand({ Filters: [{ Name: "isDefault", Values: ["true"] }] }));
-    const vpc = vpcs.Vpcs?.[0];
-    if (!vpc || !vpc.VpcId) throw new Error("No default VPC found in this region.");
-    const defaultVpcId = vpc.VpcId;
-    logger.info(`🔍 Default VPC ID: ${defaultVpcId}`);
+    const defaultVpcId = vpcs.Vpcs?.[0]?.VpcId || "";
+    if (!defaultVpcId) throw new Error("No default VPC found. ECS Networking cannot be resolved.");
 
-    // Discover all subnets in the default VPC
+    // Map all Subnet IDs within that VPC.
     const subnets = await ec2Client.send(new DescribeSubnetsCommand({ Filters: [{ Name: "vpc-id", Values: [defaultVpcId] }] }));
-    const subnetIds = (subnets.Subnets || []).map(s => s.SubnetId).filter((id): id is string => !!id).join(",");
+    const subnetIds = (subnets.Subnets || []).map(s => s.SubnetId).join(",");
 
-    // Discover the default security group
+    // Identify the 'default' Security Group (Firewall).
     const securityGroups = await ec2Client.send(new DescribeSecurityGroupsCommand({ Filters: [{ Name: "vpc-id", Values: [defaultVpcId] }, { Name: "group-name", Values: ["default"] }] }));
     const securityGroupId = securityGroups.SecurityGroups?.[0]?.GroupId || "";
-    logger.info(`✅ Discovered Network details.`);
 
-    // 7. Update .env file with discovered and created infrastructure details
+    // --- 8. CONFIGURATION FINALIZATION ---
+    // Inject all resolved Cloud ARNs and Network IDs into the local .env file.
     updateEnv("ECS_CLUSTER_ARN", clusterArn);
     updateEnv("ECS_TASK_DEFINITION_ARN", taskDefArn);
     updateEnv("ECS_CONTAINER_NAME", CONTAINER_NAME);
     updateEnv("ECS_SUBNETS", subnetIds);
     updateEnv("ECS_SECURITY_GROUPS", securityGroupId);
 
-    logger.info(`\n🎉 ECS Setup Complete! Your server/.env was automatically updated.`);
-    logger.info(`✅ The infrastructure and ECR image are fully deployed and ready for use!`);
+    logger.info(`\n🎉 ECS Infrastructure Provisioned! .env updated automatically.`);
+    logger.info(`✅ Compute engine and container registry are fully operational.`);
     
   } catch (error) {
-    logger.error("❌ ECS Setup failed:", error);
+    // Handle fatal setup exceptions.
+    logger.error("❌ Infrastructure Setup failed:", error);
     process.exit(1);
   }
 }
 
+// Execute the async setup process.
 setupECS().then(() => {
   process.exit(0);
 });

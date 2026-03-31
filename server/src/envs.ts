@@ -1,28 +1,32 @@
 /**
  * Main Server Environment Configuration.
- * This module centralizes the loading and validation of all environment variables
- * required for the backend server to communicate with AWS, Kafka, ClickHouse, and Postgres.
+ * This module is the central authority for loading and validating all environment variables
+ * required for the backend server to communicate with external infrastructure like AWS and PostgreSQL.
  */
 
 import dotenv from "dotenv";
 
-// Load environment variables from the .env file into process.env
+// Initialize dotenv to parse the .env file and populate process.env.
 dotenv.config();
 
 /**
- * Utility function to retrieve an environment variable.
- * @param key - The name of the environment variable (e.g., "AWS_REGION")
- * @param required - Whether the variable must be present (default: true)
- * @param defaultValue - Optional value to return if the variable is missing
- * @returns The value of the environment variable, the default value, or an empty string
- * @throws Error if a required variable is missing and no default is provided
+ * Utility function to retrieve an environment variable with optional validation.
+ * @param key - The exact name of the environment variable (e.g., "AWS_REGION").
+ * @param required - If true, the server will throw an error if the variable is missing (default: true).
+ * @param defaultValue - An optional fallback value if the variable is not defined.
+ * @returns The resolved value of the environment variable.
+ * @throws Error if a required variable is missing and no default is provided.
  */
 function getEnv(key: string, required = true, defaultValue?: string): string {
     const value = process.env[key];
+    
+    // Check if the variable is mandatory but missing.
     if (required && !value && defaultValue === undefined) {
-        // Halt everything if a critical configuration is missing
+        // We halt the server startup to prevent partially configured, unstable states.
         throw new Error(`❌ Missing required environment variable: ${key}`);
     }
+    
+    // Return the found value, the default value, or a safe empty string.
     return value || defaultValue || "";
 }
 
@@ -31,6 +35,7 @@ function getEnv(key: string, required = true, defaultValue?: string): string {
 export const NODE_ENV = getEnv("NODE_ENV", false, "development");
 // Internal port for the Express server (default: 8000)
 export const PORT = parseInt(getEnv("PORT", false, "8000"), 10);
+
 // --- AWS GLOBAL CONFIGURATION ---
 // AWS region for all service interactions (e.g., 'ap-south-1')
 export const AWS_REGION = getEnv("AWS_REGION", false, "ap-south-1");
@@ -45,7 +50,7 @@ export const AWS_SQS_QUEUE_URL = getEnv("AWS_SQS_QUEUE_URL", false);
 export const S3_BUCKET_NAME = getEnv("S3_BUCKET_NAME", false);
 
 // --- POSTGRESQL (MAIN DB) CONFIGURATION ---
-// Option 1: Full connection URI
+// The full connection URI for the Neon database.
 export const DATABASE_URL = getEnv("DATABASE_URL", false);
 
 // --- AWS ECS (COMPUTE) CONFIGURATION ---

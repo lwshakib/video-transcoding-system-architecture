@@ -1,24 +1,33 @@
 /**
  * Custom API Error Class.
- * This class extends the native Error to provide additional context for HTTP responses,
- * such as status codes and specific error details. It is designed to be caught 
- * by the centralized errorHandler middleware.
+ * This class extends the native JavaScript Error to provide structured metadata 
+ * specifically tailored for HTTP/REST API responses.
+ * 
+ * Benefits:
+ * 1. Consistent error payload structure across the entire backend.
+ * 2. Ability to attach numeric HTTP status codes (400, 404, 500, etc.).
+ * 3. Support for complex error details (e.g. nested validation failures).
  */
 export class ApiError extends Error {
-  // HTTP status code (e.g., 400, 404, 500)
+  // The numeric HTTP status code to be returned to the client.
   readonly statusCode: number;
-  // Always null for error responses to maintain consistent payload shape
+  
+  // Hardcoded to null to ensure error responses maintain a consistent JSON shape 
+  // where the 'data' field is always present but empty.
   readonly data: null;
-  // Explicit flag to indicate failure to the client
+  
+  // A boolean 'success' flag, hardcoded to false for this class.
   readonly success: false;
-  // Array to store multiple error details (e.g., Zod validation issues)
+  
+  // A generic array to store granular error details (e.g. Zod or Joi validation issues).
   readonly errors: unknown[];
 
   /**
-   * @param statusCode - The HTTP status code
-   * @param message - Human-readable error message
-   * @param errors - Array of specific error details
-   * @param stack - Optional stack trace override
+   * Constructs a new ApiError instance.
+   * @param statusCode - The specific HTTP status code for this error.
+   * @param message - A human-readable summary of what went wrong (default: generic).
+   * @param errors - An optional array of additional error metadata or sub-errors.
+   * @param stack - An optional pre-captured stack trace.
    */
   constructor(
     statusCode: number,
@@ -26,20 +35,21 @@ export class ApiError extends Error {
     errors: unknown[] = [],
     stack: string = ""
   ) {
-    // Call the parent Error constructor
+    // Invoke the parent Error constructor with the primary message.
     super(message);
 
     this.statusCode = statusCode;
-    this.data = null;
+    this.data = null; // Error payloads should not contain data.
     this.success = false;
     this.errors = errors;
 
-    // Handle stack trace generation or override
+    // Logic to either apply a provided stack trace or generate a new one.
     if (stack) {
+      // Use the provided stack if we are wrapping an existing error.
       this.stack = stack;
     } else {
-      // captureStackTrace is a V8-specific method that creates the .stack property 
-      // on the instance, excluding the constructor call itself from the trace.
+      // V8-specific helper: captures the current execution stack.
+      // This allows developers to see exactly where in the code the error was thrown.
       Error.captureStackTrace(this, this.constructor);
     }
   }

@@ -1,39 +1,44 @@
 /**
  * AWS S3 Setup Script.
- * This script automates the creation and public configuration of an S3 bucket.
- * It ensures the bucket exists, disables public access blocks, and attaches a public read policy
- * so that deployed static files can be served via the reverse proxy.
+ * This administrator utility automates the creation and public configuration 
+ * of the Amazon S3 storage bucket.
+ * 
+ * Orchestration Steps:
+ * 1. Provision the bucket in the designated AWS region.
+ * 2. Disable all Public Access Blocks to allow subsequent access policies.
+ * 3. Attach a Public Read policy for HLS streaming components.
+ * 4. Configure CORS rules to enable direct browser-based uploads.
  */
 
 import { s3Service } from "../services/s3.services";
 import logger from "../logger/winston.logger";
 import { AWS_REGION, S3_BUCKET_NAME } from "../envs";
 
-// Configuration for S3
+// Local cache for environment variables.
 const region = AWS_REGION;
 const bucketName = S3_BUCKET_NAME;
 
-// Validation: Ensure required environment variables are present
+// Validation: Ensure the script has the credentials required for bucket provisioning.
 if (!region || !bucketName) {
-  logger.error("❌ Missing AWS environment variables (AWS_REGION, S3_BUCKET_NAME).");
+  logger.error("❌ Missing AWS credentials or S3 bucket name. Cannot proceed with setup.");
   process.exit(1);
 }
 
 /**
- * Main Setup function for S3.
+ * Main SQS/S3 Orchestration Function for Storage Setup.
  */
 async function setupS3() {
-  logger.info(`🚀 Starting S3 setup for bucket: ${bucketName}...`);
+  logger.info(`🚀 Starting AWS S3 environment setup for bucket: ${bucketName}...`);
 
   try {
-    // 1. Check if the bucket already exists
+    // Stage 1: Provisioning.
+    // Check if the bucket exists; create it if the account is starting from scratch.
     let exists = false;
     try {
       await s3Service.headBucket();
       exists = true;
-      logger.info(`ℹ️ Bucket ${bucketName} already exists. Proceeding to update configuration.`);
+      logger.info(`ℹ️ Bucket '${bucketName}' already active. Updating configuration...`);
     } catch (err: any) {
-      // Catch 404/NotFound to determine if creation is needed
       if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
         exists = false;
       } else {
@@ -41,24 +46,24 @@ async function setupS3() {
       }
     }
 
-    // 2. Create the bucket if it doesn't exist
     if (!exists) {
       await s3Service.createBucket(region!);
-      logger.info(`✅ Bucket ${bucketName} created successfully.`);
+      logger.info(`✅ Bucket '${bucketName}' successfully created.`);
     }
 
-    // 3. Disable Public Access Blocks
-    // We need this disabled to allow our custom public policy to take effect
+    // Stage 2: Security & Firewall Throttling.
+    // We explicitly disable the account-level 'Block Public Access' to allow 
+    // the system's public HLS streams to be served.
     await s3Service.putPublicAccessBlock({
       BlockPublicAcls: false,
       IgnorePublicAcls: false,
       BlockPublicPolicy: false,
       RestrictPublicBuckets: false,
     });
-    logger.info(`✅ Public access blocks disabled.`);
+    logger.info(`✅ Account-level public access blocks disabled.`);
 
-    // 4. Define and attach a Public Read Policy
-    // This allows anyone with the URL to GET objects within the bucket
+    // Stage 3: Public Policy Allocation.
+    // This policy allows the Video Player to fetch '.m3u8' and '.ts' segments.
     const publicPolicy = {
       Version: "2012-10-17",
       Statement: [
@@ -73,30 +78,32 @@ async function setupS3() {
     };
 
     await s3Service.putBucketPolicy(JSON.stringify(publicPolicy));
-    
-    logger.info(`✅ Public read policy attached.`);
+    logger.info(`✅ Public READ access policy attached.`);
 
-    // 5. Configure CORS to allow direct browser uploads
+    // Stage 4: Network Interoperability (CORS).
+    // Configures S3 to accept HTTP 'PUT' requests from the web frontend's origin.
     const corsRules = [
       {
         AllowedHeaders: ["*"],
         AllowedMethods: ["GET", "PUT", "POST", "DELETE", "HEAD"],
-        AllowedOrigins: ["*"],
+        AllowedOrigins: ["*"], // Restrict this in production for better security.
         ExposeHeaders: ["ETag"],
         MaxAgeSeconds: 3000,
       },
     ];
     await s3Service.putBucketCors(corsRules);
-    logger.info(`✅ CORS configured for browser uploads.`);
+    logger.info(`✅ CORS configuration updated for browser uploads.`);
 
-    logger.info(`🎉 S3 setup complete! Your web files will be publicly accessible.`);
+    logger.info(`🎉 S3 Storage Infrastructure Setup Complete!`);
 
   } catch (error) {
-    logger.error("❌ S3 setup failed:", error);
+    // Catch and log fatal SDK-level failures.
+    logger.error("❌ S3 Setup failed:", error);
     process.exit(1);
   }
 }
 
+// Execute the setup and handle the process lifecycle.
 setupS3().then(() => {
   process.exit(0);
 });
