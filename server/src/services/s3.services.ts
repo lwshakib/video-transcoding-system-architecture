@@ -139,8 +139,8 @@ class S3Service {
    * @param contentType - MIME type of the file
    * @returns A promise that resolves to the pre-signed URL
    */
-  async getPreSignedUploadUrl(videoId: string, fileName: string, contentType: string) {
-    const key = `videos/${videoId}/${fileName}`;
+  async getPreSignedUploadUrl(uploadId: string, fileName: string, contentType: string) {
+    const key = `uploads/${uploadId}/${fileName}`;
     const command = new PutObjectCommand({
       Bucket: this.bucketName,
       Key: key,
@@ -150,10 +150,10 @@ class S3Service {
     try {
       // Generate a URL that expires in 60 minutes
       const url = await getSignedUrl(this.client, command, { expiresIn: 3600 });
-      logger.info(`🔗 Generated pre-signed URL for video: ${videoId}`);
+      logger.info(`🔗 Generated pre-signed URL for upload: ${uploadId}`);
       return { url, key };
     } catch (error) {
-      logger.error(`❌ Failed to generate pre-signed URL for video: ${videoId}`, error);
+      logger.error(`❌ Failed to generate pre-signed URL for upload: ${uploadId}`, error);
       throw error;
     }
   }

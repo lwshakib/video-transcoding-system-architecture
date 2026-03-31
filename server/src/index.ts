@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
+import { v4 as uuidv4 } from "uuid";
 import { postgresService } from "./services/postgres.services";
 import { s3Service } from "./services/s3.services";
 import { sqsService } from "./services/sqs.services";
@@ -51,6 +52,29 @@ app.get("/videos", async (req, res) => {
 });
 
 /**
+ * GET /videos/upload-url
+ * Purpose: Generates a pre-signed S3 URL for a client to upload a video file 
+ * before creating a database record.
+ */
+app.get("/videos/upload-url", async (req, res) => {
+  const { fileName, contentType } = req.query;
+
+  if (!fileName || !contentType) {
+    return res.status(400).json({ error: "Missing required query params: fileName, contentType" });
+  }
+
+  try {
+    const uploadId = uuidv4();
+    const { url, key } = await s3Service.getPreSignedUploadUrl(uploadId, fileName as string, contentType as string);
+
+    res.json({ uploadUrl: url, key });
+  } catch (error) {
+    logger.error("Error generating pre-signed URL:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+/**
  * GET /videos/:id
  * Purpose: Retrieves a specific video's status and constructed playback URLs.
  */
@@ -87,29 +111,41 @@ app.get("/videos/:id", async (req, res) => {
  * 2. Generates a pre-signed S3 URL for the browser to upload the file.
  */
 app.post("/videos", async (req, res) => {
-  const { title, fileName, contentType } = req.body;
+  const { title, fileName, contentType, key: providedKey } = req.body;
 
   if (!title || !fileName || !contentType) {
     return res.status(400).json({ error: "Missing required fields: title, fileName, contentType" });
   }
 
   try {
-    // 1. Create a record in the database
-    const query = "INSERT INTO videos (title, url) VALUES ($1, $2) RETURNING id";
-    const tempUrl = `pending/${fileName}`; // Placeholder until upload
-    const result = await postgresService.query(query, [title, tempUrl]);
-    const videoId = result.rows[0].id;
+    // 1. Determine the S3 key
+    let finalKey = providedKey;
+    let uploadUrl = null;
+    let videoId = null;
 
-    // 2. Generate a pre-signed S3 URL for direct upload
-    const { url, key } = await s3Service.getPreSignedUploadUrl(videoId, fileName, contentType);
+    if (!finalKey) {
+      // Legacy flow: create record first, then get URL
+      const query = "INSERT INTO videos (title, url) VALUES ($1, $2) RETURNING id";
+      const tempUrl = `pending/${fileName}`;
+      const result = await postgresService.query(query, [title, tempUrl]);
+      videoId = result.rows[0].id;
 
-    // 3. Update the DB with the final S3 key path
-    await postgresService.query("UPDATE videos SET url = $1 WHERE id = $2", [key, videoId]);
+      const { url, key } = await s3Service.getPreSignedUploadUrl(videoId, fileName, contentType);
+      finalKey = key;
+      uploadUrl = url;
+
+      await postgresService.query("UPDATE videos SET url = $1 WHERE id = $2", [finalKey, videoId]);
+    } else {
+      // New flow: file already uploaded or URL already generated
+      const query = "INSERT INTO videos (title, url) VALUES ($1, $2) RETURNING id";
+      const result = await postgresService.query(query, [title, finalKey]);
+      videoId = result.rows[0].id;
+    }
 
     res.json({ 
       videoId, 
-      uploadUrl: url,
-      key
+      uploadUrl,
+      key: finalKey
     });
   } catch (error) {
     logger.error("Error creating video record:", error);

@@ -28,10 +28,12 @@ import { cn } from '@/lib/utils';
 import axios from 'axios';
 import './player.css';
 
+import { notFound } from 'next/navigation';
+
 interface Video {
   id: string;
   title: string;
-  status: 'PENDING' | 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed';
   masterPlaylist: string;
   thumbnail?: string;
   subtitles?: string;
@@ -54,13 +56,14 @@ function formatDuration(time: number) {
   }
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function VideoPage(props: { params: Promise<{ id: string }> }) {
   const params = use(props.params);
   const [video, setVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // ... (keeping existing refs and state)
   const [isPlaying, setIsPlaying] = useState(false);
   const [isTheater, setIsTheater] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -99,7 +102,7 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
   useEffect(() => {
     fetchVideo();
     const interval = setInterval(() => {
-      if (video?.status !== 'COMPLETED' && video?.status !== 'FAILED') {
+      if (video?.status !== 'completed' && video?.status !== 'failed') {
         fetchVideo();
       }
     }, 5000);
@@ -107,11 +110,11 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
   }, [params.id, video?.status]);
 
   useEffect(() => {
-    if (video?.status === 'COMPLETED') initHls();
+    if (video?.status === 'completed') initHls();
   }, [video?.id, video?.status]);
 
   const initHls = () => {
-    if (!video || !videoRef.current || video.status !== 'COMPLETED' || !video.masterPlaylist) return;
+    if (!video || !videoRef.current || video.status !== 'completed' || !video.masterPlaylist) return;
 
     if ((window as any).Hls && (window as any).Hls.isSupported()) {
       if (hlsRef.current) hlsRef.current.destroy();
@@ -267,12 +270,35 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
     };
   }, [isScrubbing, duration]);
 
-  if (loading || !video) {
+  if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950 text-white">
-        <Loader2 className="w-10 h-10 animate-spin text-rose-500" />
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-start py-12 px-6">
+        <div className="w-full max-w-[1000px] mb-8">
+          <div className="h-4 w-32 rounded bg-zinc-900 animate-shimmer" />
+        </div>
+        
+        {/* Skeleton Player */}
+        <div className="w-full max-w-[1000px] aspect-video rounded-xl bg-zinc-900 animate-shimmer mb-8 border border-zinc-800/50" />
+        
+        {/* Skeleton Title/Meta */}
+        <div className="w-full max-w-[1000px] space-y-4">
+          <div className="h-8 w-1/2 rounded bg-zinc-900 animate-shimmer" />
+          <div className="flex gap-4">
+            <div className="h-6 w-24 rounded-full bg-zinc-900 animate-shimmer" />
+            <div className="h-6 w-32 rounded bg-zinc-900 animate-shimmer" />
+          </div>
+        </div>
       </div>
     );
+  }
+
+  // PROTECTION: If video is NOT completed, trigger Next.js notFound()
+  if (video && video.status !== 'completed') {
+    notFound();
+  }
+
+  if (!video) {
+    notFound();
   }
 
   const containerClasses = cn(
@@ -305,15 +331,6 @@ export default function VideoPage(props: { params: Promise<{ id: string }> }) {
 
       {/* PIXEL EXACT WRAPPER */}
       <div className={containerClasses} data-volume-level={volumeLevel} ref={containerRef}>
-        {(video.status === 'PROCESSING' || video.status === 'QUEUED' || video.status === 'PENDING') && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-md">
-            <Loader2 className="w-10 h-10 animate-spin mb-4 text-rose-500" />
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/50 animate-pulse">
-              {video.status}...
-            </p>
-          </div>
-        )}
-
         <img className="thumbnail-img" src={video.thumbnail} alt="thumbnail" />
 
         <div className="video-controls-container">

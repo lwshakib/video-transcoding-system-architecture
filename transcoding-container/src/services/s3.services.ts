@@ -1,8 +1,8 @@
 import { 
   S3Client, 
-  GetObjectCommand, 
-  PutObjectCommand 
+  GetObjectCommand 
 } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
 import fs from "fs";
 import { pipeline } from "stream/promises";
 import logger from "../logger/winston.logger";
@@ -67,19 +67,32 @@ class S3Service {
     logger.info(`⬆️ Uploading ${localPath} to ${key}...`);
     
     try {
-      // Use readFileSync instead of createReadStream to prevent 'IncompleteBody'
-      // errors common with S3 SDK v3 on small-medium local files.
+      // Use readFileSync to ensure we have a stable buffer to pass to the Upload manager
       const fileBuffer = fs.readFileSync(localPath);
       
-      const command = new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-        Body: fileBuffer,
-        ContentType: contentType,
-        ContentLength: fileBuffer.length, // Explicitly set length from the buffer
+      const upload = new Upload({
+        client: this.client,
+        params: {
+          Bucket: this.bucketName,
+          Key: key,
+          Body: fileBuffer,
+          ContentType: contentType,
+        },
+        // Configuration for stability in container environments
+        queueSize: 1,
+        partSize: 5 * 1024 * 1024,
+        leavePartsOnError: false,
       });
 
-      await this.client.send(command);
+      // Optional: Monitor upload progress
+      upload.on("httpUploadProgress", (progress: any) => {
+        if (progress.loaded && progress.total) {
+          const percent = Math.round((progress.loaded / progress.total) * 100);
+          if (percent % 100 === 0) logger.info(`⬆️ Uploading ${key}: ${percent}%`);
+        }
+      });
+
+      await upload.done();
       logger.info(`✅ Successfully uploaded ${key} to S3.`);
     } catch (error) {
       logger.error(`❌ Failed to upload ${key} to S3:`, error);

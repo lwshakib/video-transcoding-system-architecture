@@ -35,7 +35,7 @@ async function setupPostgres() {
       url TEXT NOT NULL,
       m3u8_url TEXT, -- Optional, populated after transcoding
       subtitles_url TEXT, -- Optional, populated after AI transcription
-      status TEXT NOT NULL DEFAULT 'PENDING', -- PENDING, QUEUED, PROCESSING, COMPLETED, FAILED
+      status TEXT NOT NULL DEFAULT 'UPLOADING', -- UPLOADING, QUEUED, PROCESSING, COMPLETED, FAILED
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `;

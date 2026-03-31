@@ -26,23 +26,43 @@ export interface VideoItem {
   id: string;
   title: string;
   size: string;
-  status: "UPLOADING" | "PENDING" | "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+  status: "UPLOADING" | "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
   progress?: number;
   createdAt: string;
 }
 
 interface VideoListProps {
   videos: VideoItem[];
+  loading?: boolean;
   onDelete: (id: string) => Promise<void>;
   onAbort?: (id: string) => void;
 }
 
-export function VideoList({ videos, onDelete, onAbort }: VideoListProps) {
+const SkeletonRow = () => (
+  <TableRow className="border-none">
+    <TableCell className="py-3 px-2">
+      <div className="flex items-center gap-3">
+        <div className="w-4 h-4 rounded bg-zinc-800 animate-shimmer" />
+        <div className="h-4 w-32 rounded bg-zinc-800 animate-shimmer" />
+      </div>
+    </TableCell>
+    <TableCell className="py-3 px-2 hidden sm:table-cell">
+      <div className="h-3 w-16 rounded bg-zinc-800 animate-shimmer" />
+    </TableCell>
+    <TableCell className="py-3 px-2 w-10">
+      <div className="h-4 w-8 rounded bg-zinc-800 animate-shimmer mx-auto" />
+    </TableCell>
+    <TableCell className="py-3 px-2 w-10 text-right">
+      <div className="h-8 w-8 rounded-lg bg-zinc-800 animate-shimmer ml-auto" />
+    </TableCell>
+  </TableRow>
+);
+
+export function VideoList({ videos, loading, onDelete, onAbort }: VideoListProps) {
   const router = useRouter();
 
   const renderStatusIcon = (status: VideoItem["status"]) => {
     switch (status) {
-      case "PENDING": 
       case "QUEUED": 
         return <span title="Queued"><Clock className="w-4 h-4 text-zinc-500 animate-pulse" /></span>;
       case "PROCESSING": 
@@ -55,6 +75,18 @@ export function VideoList({ videos, onDelete, onAbort }: VideoListProps) {
         return <Clock className="w-4 h-4 text-zinc-500" />;
     }
   };
+
+  if (loading) {
+    return (
+      <div className="w-full animate-in fade-in duration-500">
+        <Table>
+          <TableBody>
+            {[...Array(6)].map((_, i) => <SkeletonRow key={i} />)}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
 
   if (videos.length === 0) return null;
 
@@ -71,31 +103,31 @@ export function VideoList({ videos, onDelete, onAbort }: VideoListProps) {
                   key={video.id} 
                   className={cn(
                     "border-none transition-colors group",
-                    isUploading ? "bg-zinc-900/40 animate-pulse" : "hover:bg-zinc-800/30 cursor-pointer"
+                    isUploading ? "bg-zinc-900/40 animate-shimmer border-zinc-800/50" : "hover:bg-zinc-800/30 cursor-pointer text-white/90"
                   )}
-                  onClick={() => !isUploading && router.push(`/videos/${video.id}`)}
+                  onClick={() => video.status === "COMPLETED" && router.push(`/videos/${video.id}`)}
                 >
                   <TableCell className="py-3 px-2">
                     <div className="flex items-center gap-3">
                       <FileVideo className={cn(
                         "w-4 h-4 text-zinc-500",
-                        !isUploading && "group-hover:text-rose-500 transition-colors"
+                        !isUploading && "group-hover:text-emerald-500 transition-colors"
                       )} />
                       <span className={cn(
                         "font-medium",
-                        isUploading ? "text-zinc-500" : "text-zinc-200 group-hover:text-white"
+                        isUploading ? "text-white/50" : "text-zinc-200 group-hover:text-white"
                       )}>
                         {video.title}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-zinc-500 py-3 font-mono text-[10px] hidden sm:table-cell">
-                    {video.size}
+                    {!isUploading ? video.size : <div className="h-2 w-12 rounded bg-white/5 animate-shimmer" />}
                   </TableCell>
                   <TableCell className="py-3 px-2 w-10">
                      <div className="flex items-center justify-center">
                         {isUploading ? (
-                          <span className="text-[10px] font-bold text-zinc-500">{video.progress || 0}%</span>
+                          <span className="text-[10px] font-bold text-white/60">{video.progress || 0}%</span>
                         ) : renderStatusIcon(video.status)}
                      </div>
                   </TableCell>

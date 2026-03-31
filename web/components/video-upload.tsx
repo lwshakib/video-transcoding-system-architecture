@@ -42,25 +42,25 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
     setIsUploading(true);
     setError(null);
     const controller = new AbortController();
-
-    let currentVideoId = "";
+    const tempId = `temp-${Date.now()}`;
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
       
-      // 1. Create record in DB immediately
-      const { data: uploadData } = await axios.post(`${API_URL}/videos`, {
-        title: file.name.split(".")[0],
-        fileName: file.name,
-        contentType: file.type
-      }, { signal: controller.signal });
+      // 1. Get pre-signed URL and unique key WITHOUT creating record yet
+      const { data: uploadInfo } = await axios.get(`${API_URL}/videos/upload-url`, {
+        params: {
+          fileName: file.name,
+          contentType: file.type
+        },
+        signal: controller.signal
+      });
 
-      const { videoId, uploadUrl } = uploadData;
-      currentVideoId = videoId;
+      const { uploadUrl, key } = uploadInfo;
 
-      // 2. Optimistically add to the list as UPLOADING
+      // 2. Optimistically add to the list as UPLOADING (using temporary ID)
       onVideoAdded({
-        id: videoId,
+        id: tempId,
         title: file.name.split(".")[0],
         size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
         status: "UPLOADING",
@@ -74,21 +74,30 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
         signal: controller.signal,
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || file.size));
-          onProgress(videoId, percentCompleted);
+          onProgress(tempId, percentCompleted);
         }
       });
 
-      // 4. Signal server to start transcoding
+      // 4. AFTER upload is 100%, create the record in DB
+      const { data: recordData } = await axios.post(`${API_URL}/videos`, {
+        title: file.name.split(".")[0],
+        fileName: file.name,
+        contentType: file.type,
+        key: key
+      }, { signal: controller.signal });
+
+      const { videoId } = recordData;
+
+      // 5. Signal server to start transcoding
       const { data: finalVideo } = await axios.post(`${API_URL}/videos/${videoId}/start`, {}, { signal: controller.signal });
 
-      // 5. Success cleanup
-      onComplete(videoId, finalVideo);
+      // 6. Success cleanup (replaces temp item with real video data)
+      onComplete(tempId, finalVideo);
       setIsUploading(false);
       
     } catch (err: unknown) {
       if (axios.isCancel(err)) {
         console.log("Upload aborted by user");
-        // Update parent to remove the item or mark as failed
         return;
       }
       
@@ -129,27 +138,23 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
           dragActive
             ? "border-primary bg-primary/5"
             : "border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900/50",
-          isUploading ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+          "cursor-pointer"
         )}
-        onDragEnter={!isUploading ? handleDrag : undefined}
-        onDragLeave={!isUploading ? handleDrag : undefined}
-        onDragOver={!isUploading ? handleDrag : undefined}
-        onDrop={!isUploading ? handleDrop : undefined}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
       >
         <div className="p-4 rounded-full bg-zinc-800 mb-2">
-          {isUploading ? (
-             <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
-          ) : (
-            <Upload className="w-6 h-6 text-zinc-500" />
-          )}
+          <Upload className="w-6 h-6 text-zinc-500" />
         </div>
         
         <div className="text-center">
           <p className="text-sm font-medium text-zinc-300">
-            {isUploading ? "Uploading in background..." : dragActive ? "Drop to upload" : "Drag and drop video"}
+            {dragActive ? "Drop to upload" : "Drag and drop video"}
           </p>
           <p className="text-xs text-zinc-500 mt-1">
-            {isUploading ? "You can upload more or manage the list below." : "or click to browse"}
+            or click to browse
           </p>
         </div>
         
@@ -158,7 +163,6 @@ export function VideoUpload({ onVideoAdded, onProgress, onComplete }: VideoUploa
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           onChange={handleChange}
           accept="video/*"
-          disabled={isUploading}
         />
 
         {error && (

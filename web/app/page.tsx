@@ -12,7 +12,7 @@ export default function Home() {
 
   const fetchVideos = useCallback(async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
       const { data } = await axios.get(`${API_URL}/videos`);
       
       // Merge with existing uploading videos to keep progress
@@ -45,13 +45,13 @@ export default function Home() {
     );
   };
 
-  const handleComplete = (videoId: string, updatedVideo: VideoItem) => {
+  const handleComplete = (oldId: string, updatedVideo: VideoItem) => {
     setVideos((prev) => 
-      prev.map((v) => (v.id === videoId ? updatedVideo : v))
+      prev.map((v) => (v.id === oldId ? updatedVideo : v))
     );
     setAbortControllers((prev) => {
       const next = { ...prev };
-      delete next[videoId];
+      delete next[oldId];
       return next;
     });
   };
@@ -71,7 +71,7 @@ export default function Home() {
 
   const handleDeleteVideo = async (id: string) => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
       await axios.delete(`${API_URL}/videos/${id}`);
       fetchVideos();
     } catch (err) {
@@ -91,6 +91,7 @@ export default function Home() {
           />
           <VideoList 
             videos={videos} 
+            loading={loading}
             onDelete={handleDeleteVideo} 
             onAbort={handleAbort}
           />
