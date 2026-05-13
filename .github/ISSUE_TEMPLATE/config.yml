@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Community Discussions
+    url: https://github.com/lwshakib/video-transcoding-system-architecture/discussions
+    about: Ask questions and share ideas with the community.
+  - name: 🛡️ Security Policy
+    url: https://github.com/lwshakib/video-transcoding-system-architecture/security/policy
+    about: Report security vulnerabilities.

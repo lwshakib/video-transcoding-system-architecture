@@ -1,0 +1,342 @@
+/**
+ * Custom Video Player Stylesheet.
+ * This file defines the layout, transitions, and interactive states for the 
+ * professional-grade HLS video player. It uses CSS variables and data attributes 
+ * to sync with the React state and volume levels.
+ */
+
+.video-container {
+  position: relative;
+  width: 90%;
+  max-width: 1000px;
+  aspect-ratio: 16 / 9; /* Ensures standard widescreen proportions */
+  display: flex;
+  justify-content: center;
+  margin-inline: auto;
+  background-color: black;
+  border-radius: 12px;
+  overflow: hidden; /* Clips the video and controls to the rounded corners */
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); /* Deep depth for premium feel */
+}
+
+/* THEATER & FULLSCREEN MODES: Overrides baseline constraints to expand the view */
+.video-container.theater,
+.video-container.full-screen {
+  max-width: initial;
+  width: 100%;
+  border-radius: 0;
+}
+
+.video-container.theater {
+  max-height: 90vh;
+}
+
+.video-container.full-screen {
+  max-height: 100vh;
+}
+
+/* NATIVE VIDEO ELEMENT: Ensures images and video fill the container correctly */
+.video-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* CONTROLS OVERLAY: Positions the UI at the bottom with a smooth gradient shadow */
+.video-controls-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  color: white;
+  z-index: 100;
+  opacity: 0; /* Hidden by default */
+  transition: opacity 150ms ease-in-out;
+}
+
+/* VIGNETTE GRADIENT: Implements a dark 'shadow' behind controls for better legibility */
+.video-controls-container::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+  width: 100%;
+  aspect-ratio: 6 / 1;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* VISIBILITY LOGIC: Controls appear on hover, focus, or when playback is paused */
+.video-container:hover .video-controls-container,
+.video-container:focus-within .video-controls-container,
+.video-container.paused .video-controls-container {
+  opacity: 1;
+}
+
+/* CONTROLS LAYOUT: Aligns buttons, volume, and clock within the overlay */
+.video-controls-container .controls {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.25rem;
+  align-items: center;
+}
+
+/* BUTTON STYLES: Standardizes icons and adds subtle hover interactions */
+.video-controls-container .controls button {
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  height: 35px;
+  width: 35px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 150ms ease-in-out;
+}
+
+.video-controls-container .controls button:hover {
+  opacity: 1;
+}
+
+/* DYNAMIC ICONS: Logic to hide/show icons based on current player state */
+.video-container.paused .pause-icon {
+  display: none;
+}
+
+.video-container:not(.paused) .play-icon {
+  display: none;
+}
+
+/* THEATER MODE ICON TOGGLE */
+.video-container.theater .tall {
+  display: none;
+}
+
+.video-container:not(.theater) .wide {
+  display: none;
+}
+
+/* FULLSCREEN ICON TOGGLE */
+.video-container.full-screen .open {
+  display: none;
+}
+
+.video-container:not(.full-screen) .close {
+  display: none;
+}
+
+/* VOLUME ICON LOGIC: Matches the current volume segment (high/low/muted) */
+.volume-high-icon,
+.volume-low-icon,
+.volume-muted-icon {
+  display: none;
+}
+
+.video-container[data-volume-level="high"] .volume-high-icon {
+  display: block;
+}
+
+.video-container[data-volume-level="low"] .volume-low-icon {
+  display: block;
+}
+
+.video-container[data-volume-level="muted"] .volume-muted-icon {
+  display: block;
+}
+
+.volume-container {
+  display: flex;
+  align-items: center;
+}
+
+/* VOLUME SLIDER: Expands on hover with smooth horizontal scaling */
+.volume-slider {
+  width: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition:
+    width 150ms ease-in-out,
+    transform 150ms ease-in-out,
+    opacity 100ms;
+  opacity: 0;
+}
+
+.volume-container:hover .volume-slider,
+.volume-slider:focus-within {
+  width: 80px;
+  transform: scaleX(1);
+  opacity: 1;
+  margin-left: 8px;
+  margin-right: 8px;
+}
+
+/* CLOCK & PLAYBACK INFO: Monospace font for consistent character widths */
+.duration-container {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-grow: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* CAPTIONS STATUS: Visual highlight (Rose-500) when subtitles are active */
+.video-container.captions .captions-btn {
+  color: #f43f5e;
+}
+
+/* TIMELINE CONTAINER: The hit area for clicking to seek */
+.timeline-container {
+  height: 7px;
+  margin-inline: 0.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* TIMELINE TRACK: Baseline background for the progress bar */
+.timeline {
+  background-color: rgba(100, 100, 100, 0.5);
+  height: 3px;
+  width: 100%;
+  position: relative;
+}
+
+/* PREVIEW LINE (BEFORE): Gray indicator showing where the mouse is hovering */
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: calc(100% - var(--preview-position) * 100%);
+  background-color: rgb(150, 150, 150);
+  display: none;
+}
+
+/* PROGRESS LINE (AFTER): Rose colored indicator for current playback time */
+.timeline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: calc(100% - var(--progress-position) * 100%);
+  background-color: #f43f5e;
+}
+
+/* SCRUBBING THUMB: The circular handle that appears on hover and drag */
+.timeline .thumb-indicator {
+  --scale: 0;
+  position: absolute;
+  transform: translateX(-50%) scale(var(--scale));
+  height: 200%;
+  top: -50%;
+  left: calc(var(--progress-position) * 100%);
+  background-color: #f43f5e;
+  border-radius: 50%;
+  transition: transform 150ms ease-in-out;
+  aspect-ratio: 1 / 1;
+}
+
+/* IMAGE PREVIEW: Hover segment snapshot above the timeline */
+.timeline .preview-img {
+  position: absolute;
+  height: 80px;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: black;
+  top: -1rem;
+  transform: translate(-50%, -100%);
+  left: calc(var(--preview-position) * 100%);
+  border-radius: 0.5rem;
+  border: 2px solid white;
+  display: none;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.8);
+}
+
+/* THUMBNAIL OVERLAY: Displayed as a poster or during active scrubbing */
+.thumbnail-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: none;
+}
+
+/* SCRUBBING MODIFIERS: Handles visibility during active drag operations */
+.video-container.scrubbing .thumbnail-img {
+  display: block;
+}
+
+.video-container.scrubbing .preview-img,
+.timeline-container:hover .preview-img {
+  display: block;
+}
+
+.video-container.scrubbing .timeline::before,
+.timeline-container:hover .timeline::before {
+  display: block;
+}
+
+.video-container.scrubbing .thumb-indicator,
+.timeline-container:hover .thumb-indicator {
+  --scale: 1;
+}
+
+.video-container.scrubbing .timeline,
+.timeline-container:hover .timeline {
+  height: 100%;
+}
+
+/* SETTINGS MENU: Animates the cog icon on open */
+.settings-wrapper {
+  position: relative;
+}
+
+.settings-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.settings-btn.active {
+  transform: rotate(60deg);
+}
+
+/* GLOBAL MINIMAL SCROLLBAR: Dark mode styled track and thumb */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* FIREFOX SCROLLBAR COMPATIBILITY */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}

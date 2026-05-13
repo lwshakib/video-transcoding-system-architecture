@@ -1,0 +1,50 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "Video Transcoding System Server",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsc-watch --onSuccess \"node dist/index.js\"",
+    "build": "tsc -p .",
+    "start": "node dist/index.js",
+    "postgres:setup": "node dist/scripts/setup-postgres.js",
+    "s3:setup": "node dist/scripts/setup-s3.js",
+    "sqs:setup": "node dist/scripts/setup-sqs.js",
+    "ecs:setup": "node dist/scripts/setup-ecs.js",
+    "postgres:reset": "node dist/scripts/reset-postgres.js",
+    "s3:reset": "node dist/scripts/reset-s3.js",
+    "sqs:reset": "node dist/scripts/reset-sqs.js",
+    "ecs:reset": "node dist/scripts/reset-ecs.js",
+    "infra:setup": "npm run postgres:setup && npm run s3:setup && npm run sqs:setup && npm run ecs:setup",
+    "infra:reset": "npm run ecs:reset && npm run sqs:reset && npm run s3:reset && npm run postgres:reset"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.712.0",
+    "@aws-sdk/client-ec2": "^3.712.0",
+    "@aws-sdk/client-ecr": "^3.712.0",
+    "@aws-sdk/client-ecs": "^3.712.0",
+    "@aws-sdk/client-iam": "^3.712.0",
+    "@aws-sdk/client-s3": "^3.712.0",
+    "@aws-sdk/client-sqs": "^3.712.0",
+    "@aws-sdk/s3-request-presigner": "^3.712.0",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "morgan": "^1.10.0",
+    "pg": "^8.11.5",
+    "random-word-slugs": "^0.1.7",
+    "uuid": "^10.0.0",
+    "winston": "^3.13.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.9",
+    "@types/pg": "^8.11.0",
+    "@types/uuid": "^10.0.0",
+    "tsc-watch": "^7.2.0",
+    "typescript": "^5.9.3"
+  }
+}
