@@ -15,7 +15,11 @@ import {
   DeleteQueueCommand,
   GetQueueUrlCommand,
 } from "@aws-sdk/client-sqs"
-import { AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY } from "../envs.js"
+import {
+  AWS_ACCESS_KEY_ID,
+  AWS_REGION,
+  AWS_SECRET_ACCESS_KEY,
+} from "../envs.js"
 import logger from "../logger/winston.logger.js"
 import { updateEnv } from "../utils/env-updater.js"
 

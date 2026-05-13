@@ -5,9 +5,10 @@ Express, and AWS Fargate. It handles the entire lifecycle of a video—from
 direct S3 uploads and adaptive bitrate transcoding to AI-driven subtitle
 generation and public playback.
 
-![Video Upload Demo](./web/public/app_demo/video_upload_demo.png)
-
-![Video Player Demo](./web/public/app_demo/video_player_demo.png)
+<p align="center">
+  <img src="./apps/web/public/app_demo/video_upload_demo.png" width="48%" />
+  <img src="./apps/web/public/app_demo/video_player_demo.png" width="48%" />
+</p>
 
 ---
 
@@ -16,11 +17,11 @@ generation and public playback.
 This project is a monorepo consisting of three highly decoupled components,
 linked through AWS infrastructure:
 
-| Component                             | Description          | Tech Stack                          |
-| :------------------------------------ | :------------------- | :---------------------------------- |
-| **[Web](./web)**                      | Next.js Frontend     | Next.js, Tailwind, Hls.js, Radix UI |
-| **[Server](./server)**                | Node.js Orchestrator | Express, AWS SDK, PostgreSQL        |
-| **[Worker](./transcoding-container)** | Compute Engine       | Node.js, FFmpeg, Vosk AI, Python    |
+| Component                                  | Description          | Tech Stack                          |
+| :----------------------------------------- | :------------------- | :---------------------------------- |
+| **[Web](./apps/web)**                      | Next.js Frontend     | Next.js, Tailwind, Hls.js, Radix UI |
+| **[Server](./apps/server)**                | Node.js Orchestrator | Express, AWS SDK, PostgreSQL        |
+| **[Worker](./apps/transcoding-container)** | Compute Engine       | Node.js, FFmpeg, Vosk AI, Python    |
 
 For a deep-dive into the event-driven system flow and Mermaid diagrams,
 see the **[Architecture Documentation](./ARCHITECTURE.md)**.
@@ -57,11 +58,13 @@ provision your cloud resources either manually or via automated scripts.
 ### 4. Local Development
 
 # Using Turbo to run everything at once
+
 pnpm dev
 
 # Or in separate terminal windows
+
 cd apps/server && pnpm dev
-cd apps/web    && pnpm dev
+cd apps/web && pnpm dev
 
 ---
 

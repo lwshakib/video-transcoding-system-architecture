@@ -51,7 +51,7 @@ graph TD
 
 ## 🔬 Component Breakdown
 
-### 1. Frontend (Next.js)
+### 1. Frontend ([apps/web](./apps/web))
 
 - **Role**: Entry point for users to upload and watch videos.
 - **Key Features**:
@@ -60,7 +60,7 @@ graph TD
   - Direct-to-S3 uploads using pre-signed URLs to reduce server load.
 - **Tech**: Next.js, Tailwind CSS, Hls.js, Lucide Icons.
 
-### 2. Backend (Express API)
+### 2. Backend ([apps/server](./apps/server))
 
 - **Role**: The orchestrator of the system.
 - **Key Responsibilities**:
@@ -70,7 +70,7 @@ graph TD
   - Tracking the state of active containers and ECS tasks.
 - **Tech**: Express.js, TypeScript, AWS SDK, PostgreSQL (Neon).
 
-### 3. Transcoding Worker (Node.js + FFmpeg)
+### 3. Transcoding Worker ([apps/transcoding-container](./apps/transcoding-container))
 
 - **Role**: The compute-intensive engine that performs the actual processing.
 - **Lifecycle**:
