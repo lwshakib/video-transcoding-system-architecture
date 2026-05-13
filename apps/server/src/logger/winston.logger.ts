@@ -5,7 +5,7 @@
  */
 
 import winston from "winston"
-import { NODE_ENV } from "../envs"
+import { NODE_ENV } from "../envs.js"
 
 /**
  * Custom severity levels for the application.

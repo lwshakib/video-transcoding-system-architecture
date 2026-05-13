@@ -7,13 +7,13 @@
 import express, { Request, Response } from "express"
 import cors from "cors"
 import { v4 as uuidv4 } from "uuid"
-import { postgresService } from "./services/postgres.services"
-import { s3Service } from "./services/s3.services"
-import { sqsService } from "./services/sqs.services"
-import { dockerService } from "./services/docker.services"
-import { ecsService } from "./services/ecs.services"
-import logger from "./logger/winston.logger"
-import { PORT, S3_BUCKET_NAME, AWS_REGION, NODE_ENV } from "./envs"
+import { postgresService } from "./services/postgres.services.js"
+import { s3Service } from "./services/s3.services.js"
+import { sqsService } from "./services/sqs.services.js"
+import { dockerService } from "./services/docker.services.js"
+import { ecsService } from "./services/ecs.services.js"
+import logger from "./logger/winston.logger.js"
+import { PORT, S3_BUCKET_NAME, AWS_REGION, NODE_ENV } from "./envs.js"
 
 // Initialize the Express application instance.
 const app = express()

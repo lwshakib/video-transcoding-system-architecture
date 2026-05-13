@@ -13,17 +13,17 @@ import {
   ReceiveMessageCommand,
   DeleteMessageCommand,
 } from "@aws-sdk/client-sqs"
-import { ecsService } from "./ecs.services"
-import { dockerService } from "./docker.services"
-import { postgresService } from "./postgres.services"
-import logger from "../logger/winston.logger"
+import { ecsService } from "./ecs.services.js"
+import { dockerService } from "./docker.services.js"
+import { postgresService } from "./postgres.services.js"
+import logger from "../logger/winston.logger.js"
 import {
   AWS_REGION,
   AWS_ACCESS_KEY_ID,
   AWS_SECRET_ACCESS_KEY,
   AWS_SQS_QUEUE_URL,
   NODE_ENV,
-} from "../envs"
+} from "../envs.js"
 
 class SQSService {
   // Shared AWS SQS Client instance.

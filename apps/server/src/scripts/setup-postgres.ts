@@ -11,8 +11,8 @@
  */
 
 import pg from "pg"
-import { DATABASE_URL } from "../envs"
-import logger from "../logger/winston.logger"
+import { DATABASE_URL } from "../envs.js"
+import logger from "../logger/winston.logger.js"
 
 /**
  * Main Database Orchestration Function for Postgres Setup.

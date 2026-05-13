@@ -5,8 +5,8 @@
  */
 
 import { Pool } from "pg"
-import logger from "../logger/winston.logger"
-import { DATABASE_URL, VIDEO_ID } from "../envs"
+import logger from "../logger/winston.logger.js"
+import { DATABASE_URL, VIDEO_ID } from "../envs.js"
 
 class PostgresService {
   // The 'Pool' manages multiple database client connections for efficiency and reuse.

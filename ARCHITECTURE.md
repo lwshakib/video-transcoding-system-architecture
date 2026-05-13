@@ -70,7 +70,7 @@ graph TD
   - Tracking the state of active containers and ECS tasks.
 - **Tech**: Express.js, TypeScript, AWS SDK, PostgreSQL (Neon).
 
-### 3. Transcoding Worker (Bun + FFmpeg)
+### 3. Transcoding Worker (Node.js + FFmpeg)
 
 - **Role**: The compute-intensive engine that performs the actual processing.
 - **Lifecycle**:
@@ -80,7 +80,7 @@ graph TD
   3.  **AI Analysis**: Vosk AI generates a transcript and WebVTT subtitles.
   4.  **Synchronization**: Uploads the processed segments, thumbnails, and
       subtitles back to S3.
-- **Tech**: Bun, FFmpeg, Python (Vosk), AWS SDK.
+- **Tech**: Node.js, FFmpeg, Python (Vosk), AWS SDK.
 
 ---
 

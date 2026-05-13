@@ -24,8 +24,8 @@ import {
   AWS_REGION,
   AWS_SECRET_ACCESS_KEY,
   S3_BUCKET_NAME,
-} from "../envs"
-import logger from "../logger/winston.logger"
+} from "../envs.js"
+import logger from "../logger/winston.logger.js"
 
 class S3Service {
   // Shared AWS SDK S3 Client instance.

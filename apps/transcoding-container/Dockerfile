@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Bun
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
 
 WORKDIR /app
 
@@ -29,14 +29,14 @@ RUN wget -q https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip 
     && rm vosk-model-small-en-us-0.15.zip
 
 # Copy dependency files and install
-COPY package.json bun.lock ./
-RUN bun install
+COPY package.json ./
+RUN npm install
 
 # Copy application source
 COPY . .
 
 # Build the TypeScript project
-RUN bun run build
+RUN npm run build
 
 # Ensure required directories exist
 RUN mkdir -p /tmp /mnt/original /mnt/transcoded
@@ -47,4 +47,4 @@ RUN cp src/transcribe.py transcribe.py
 WORKDIR /app
 
 # Run the container from the root, pointing to the compiled JS in dist/
-CMD ["bun", "dist/index.js"]
+CMD ["node", "dist/index.js"]

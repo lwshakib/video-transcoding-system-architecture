@@ -5,8 +5,8 @@
  */
 
 import morgan, { type StreamOptions } from "morgan"
-import logger from "./winston.logger"
-import { NODE_ENV } from "../envs"
+import logger from "./winston.logger.js"
+import { NODE_ENV } from "../envs.js"
 
 /**
  * Winston-compatible stream for Morgan.

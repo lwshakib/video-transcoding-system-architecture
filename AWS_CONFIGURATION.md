@@ -45,8 +45,8 @@ DATABASE_URL=postgres://...
 Run the orchestration lifecycle:
 
 ```bash
-# In the /server directory
-bun run infra:setup
+# In the /apps/server directory
+pnpm run infra:setup
 ```
 
 **Automation Breakdown:**
@@ -153,8 +153,8 @@ The transcoding worker needs specific permissions to function.
 If you need to purge the infrastructure and start from scratch, use the integrated reset utility:
 
 ```bash
-# In the /server directory
-bun run infra:reset
+# In the /apps/server directory
+pnpm run infra:reset
 ```
 
 _Caution: This will delete all ECS tasks, ECR images, SQS queues, and S3 objects permanently._

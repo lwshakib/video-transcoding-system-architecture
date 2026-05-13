@@ -20,7 +20,7 @@ linked through AWS infrastructure:
 | :------------------------------------ | :------------------- | :---------------------------------- |
 | **[Web](./web)**                      | Next.js Frontend     | Next.js, Tailwind, Hls.js, Radix UI |
 | **[Server](./server)**                | Node.js Orchestrator | Express, AWS SDK, PostgreSQL        |
-| **[Worker](./transcoding-container)** | Compute Engine       | Bun, FFmpeg, Vosk AI, Python        |
+| **[Worker](./transcoding-container)** | Compute Engine       | Node.js, FFmpeg, Vosk AI, Python    |
 
 For a deep-dive into the event-driven system flow and Mermaid diagrams,
 see the **[Architecture Documentation](./ARCHITECTURE.md)**.
@@ -33,7 +33,8 @@ see the **[Architecture Documentation](./ARCHITECTURE.md)**.
 
 Ensure you have the following installed on your machine:
 
-- [Bun](https://bun.sh/) (Primary runtime)
+- [pnpm](https://pnpm.io/) (Primary package manager)
+- [Node.js](https://nodejs.org/) (Runtime)
 - [Docker](https://www.docker.com/) (For local worker execution)
 - [PostgreSQL](https://www.postgresql.org/)
 
@@ -44,7 +45,7 @@ Clone the repository and install dependencies:
 ```bash
 git clone https://github.com/lwshakib/video-transcoding-system-architecture.git
 cd video-transcoding-system-architecture
-bun install
+pnpm install
 ```
 
 ### 3. Infrastructure Setup
@@ -55,13 +56,12 @@ provision your cloud resources either manually or via automated scripts.
 
 ### 4. Local Development
 
-To run all services locally:
+# Using Turbo to run everything at once
+pnpm dev
 
-```bash
-# In separate terminal windows
-cd server && bun run dev
-cd web    && bun run dev
-```
+# Or in separate terminal windows
+cd apps/server && pnpm dev
+cd apps/web    && pnpm dev
 
 ---
 

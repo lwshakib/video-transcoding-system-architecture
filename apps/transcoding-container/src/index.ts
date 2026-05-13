@@ -14,10 +14,10 @@ import { spawn } from "child_process"
 import path from "path"
 import fs from "fs"
 import { glob } from "glob"
-import logger from "./logger/winston.logger"
-import { s3Service } from "./services/s3.services"
-import { postgresService } from "./services/postgres.services"
-import { VIDEO_ID, VIDEO_URL } from "./envs"
+import logger from "./logger/winston.logger.js"
+import { s3Service } from "./services/s3.services.js"
+import { postgresService } from "./services/postgres.services.js"
+import { VIDEO_ID, VIDEO_URL } from "./envs.js"
 
 /**
  * Utility helper to execute shell commands (ffmpeg, ffprobe, python3).

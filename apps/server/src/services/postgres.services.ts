@@ -6,8 +6,8 @@
  */
 
 import { Pool, PoolConfig } from "pg"
-import logger from "../logger/winston.logger"
-import { DATABASE_URL } from "../envs"
+import logger from "../logger/winston.logger.js"
+import { DATABASE_URL } from "../envs.js"
 
 class PostgresService {
   // Shared connection pool instance for centralized resource management.

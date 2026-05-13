@@ -12,9 +12,9 @@
  * WARNING: This action is destructive and irreversible.
  */
 
-import { s3Service } from "../services/s3.services"
-import logger from "../logger/winston.logger"
-import { AWS_REGION, S3_BUCKET_NAME } from "../envs"
+import { s3Service } from "../services/s3.services.js"
+import logger from "../logger/winston.logger.js"
+import { AWS_REGION, S3_BUCKET_NAME } from "../envs.js"
 
 // Local cache for the target bucket identifier.
 const bucketName = S3_BUCKET_NAME

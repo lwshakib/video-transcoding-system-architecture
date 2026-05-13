@@ -47,25 +47,27 @@ inspire, and create.
 
 ### Monorepo Structure
 
-- `/server`: Node.js/Express API.
-- `/web`: Next.js frontend with Tailwind CSS.
-- `/transcoding-container`: The worker container for processing videos.
+- `/apps/server`: Node.js/Express API.
+- `/apps/web`: Next.js frontend with Tailwind CSS.
+- `/apps/transcoding-container`: The worker container for processing videos.
 
 ### Running Locally
 
 To get started with local development, ensure you have:
 
-- [Bun](https://bun.sh/) (Primary runtime for the project)
+- [pnpm](https://pnpm.io/) (Primary package manager)
+- [Node.js](https://nodejs.org/) (Runtime)
 - [Docker](https://www.docker.com/) (For local worker execution)
 - [PostgreSQL](https://www.postgresql.org/) (Local or Neon)
 
 1. Clone the repository.
-2. Install dependencies in each directory using `bun install`.
+2. Install dependencies using `pnpm install` at the root.
 3. Follow the [AWS Configuration Guide](./AWS_CONFIGURATION.md) to set up your
    infrastructure.
 4. Start the development servers:
-   - **Server**: `cd server && bun run dev`
-   - **Web**: `cd web && bun run dev`
+   - **Root**: `pnpm dev` (runs all services)
+   - **Server**: `cd apps/server && pnpm dev`
+   - **Web**: `cd apps/web && pnpm dev`
 
 ---
 

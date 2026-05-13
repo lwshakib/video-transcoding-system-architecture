@@ -7,7 +7,7 @@
 
 import fs from "fs"
 import path from "path"
-import logger from "../logger/winston.logger"
+import logger from "../logger/winston.logger.js"
 
 /**
  * Surgically updates or adds an environment variable in the .env file.

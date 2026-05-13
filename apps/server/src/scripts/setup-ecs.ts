@@ -22,7 +22,7 @@ import {
   AWS_REGION,
   AWS_SECRET_ACCESS_KEY,
   S3_BUCKET_NAME,
-} from "../envs"
+} from "../envs.js"
 import {
   CloudWatchLogsClient,
   CreateLogGroupCommand,
@@ -48,8 +48,8 @@ import {
 } from "@aws-sdk/client-ec2"
 import path from "path"
 import { execSync } from "child_process"
-import logger from "../logger/winston.logger"
-import { updateEnv } from "../utils/env-updater"
+import logger from "../logger/winston.logger.js"
+import { updateEnv } from "../utils/env-updater.js"
 
 // Configuration for AWS Client communication.
 const region = AWS_REGION

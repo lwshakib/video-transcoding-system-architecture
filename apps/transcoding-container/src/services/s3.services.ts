@@ -8,13 +8,13 @@ import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3"
 import { Upload } from "@aws-sdk/lib-storage"
 import fs from "fs"
 import { pipeline } from "stream/promises"
-import logger from "../logger/winston.logger"
+import logger from "../logger/winston.logger.js"
 import {
   AWS_REGION,
   AWS_ACCESS_KEY_ID,
   AWS_SECRET_ACCESS_KEY,
   S3_BUCKET_NAME,
-} from "../envs"
+} from "../envs.js"
 
 class S3Service {
   // The official AWS SDK V3 Client for direct S3 operations.

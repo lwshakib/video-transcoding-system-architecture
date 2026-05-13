@@ -10,9 +10,9 @@
  * 4. Configure CORS rules to enable direct browser-based uploads.
  */
 
-import { s3Service } from "../services/s3.services"
-import logger from "../logger/winston.logger"
-import { AWS_REGION, S3_BUCKET_NAME } from "../envs"
+import { s3Service } from "../services/s3.services.js"
+import logger from "../logger/winston.logger.js"
+import { AWS_REGION, S3_BUCKET_NAME } from "../envs.js"
 
 // Local cache for environment variables.
 const region = AWS_REGION

@@ -1,0 +1,8 @@
+node_modules
+dist
+bun.lock
+pnpm-lock.yaml
+package-lock.json
+.git
+.env
+tmp

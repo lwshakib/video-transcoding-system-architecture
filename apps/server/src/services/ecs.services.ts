@@ -6,7 +6,7 @@
  */
 
 import { ECSClient, RunTaskCommand, StopTaskCommand } from "@aws-sdk/client-ecs"
-import logger from "../logger/winston.logger"
+import logger from "../logger/winston.logger.js"
 import {
   AWS_ACCESS_KEY_ID,
   AWS_REGION,
@@ -18,7 +18,7 @@ import {
   ECS_SECURITY_GROUPS,
   ECS_SUBNETS,
   ECS_TASK_DEFINITION_ARN,
-} from "../envs"
+} from "../envs.js"
 
 class ECSService {
   // Shared AWS ECS Client instance for the entire application.

@@ -6,8 +6,8 @@
  */
 
 import { spawn } from "child_process"
-import logger from "../logger/winston.logger"
-import * as envs from "../envs"
+import logger from "../logger/winston.logger.js"
+import * as envs from "../envs.js"
 
 class DockerService {
   /**
