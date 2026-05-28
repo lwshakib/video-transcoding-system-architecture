@@ -63,7 +63,16 @@ const baseMount = "/mnt"
 // Extract the original filename (e.g., 'movie.mp4') from the S3 key.
 const originalFileName = path.basename(VIDEO_URL)
 // Construct the temporary local path for the source video.
-const inputPath = path.join(baseMount, "original", originalFileName)
+// Construct the temporary local path for the source video.
+const inputDir = path.join(baseMount, "original")
+const inputPath = path.join(inputDir, originalFileName)
+
+const absoluteInputPath = path.resolve(inputPath)
+if (!absoluteInputPath.startsWith(path.resolve(inputDir))) {
+  throw new Error(
+    "Security Violation: Access to path outside allowed directory"
+  )
+}
 
 /**
  * Standard Quality Tiers for Adaptive Bitrate Streaming (ABR).
